@@ -8,8 +8,7 @@ import {
 import type { CompletionSource } from "@codemirror/autocomplete";
 import { probeAt } from "../yaml/path";
 import { yamlRegions } from "./mode";
-import type { SchemaTracker } from "../yaml/schema";
-import type { SnippetTemplate } from "../types";
+import { resolveSchemaName, propertiesAt, enumAt } from "../yaml/jsonschema";
 import { BUILTIN_SNIPPETS, expandDatePlaceholders, toCodeMirrorSnippet } from "../yaml/snippets";
 import YamlEditorPlugin from "../main";
 
@@ -47,17 +46,53 @@ export function yamlCompletion(plugin: YamlEditorPlugin) {
 
     const results: Completion[] = [];
     const now = new Date();
+    const schemaKeys = new Set<string>();
 
-    // ── 1. Schema keys at this path ──────────────────────────────────────
+    const isPresent = (keyPart: string): boolean =>
+      regionText
+        .split("\n")
+        .some((l) => l.trimStart().startsWith(`${keyPart}:`) || l.trimStart().startsWith(`- ${keyPart}:`));
+
+    // ── 0. Explicit schema (if the region opts into one) ─────────────────
+    const schemaName = resolveSchemaName(regionText);
+    const schema = schemaName ? plugin.schemaStore.get(schemaName) : undefined;
+    if (schema) {
+      // Keys declared at this path.
+      for (const prop of propertiesAt(schema, probe.path)) {
+        schemaKeys.add(prop.key);
+        if (isPresent(prop.key) && probe.path.length > 0) continue;
+        const detail = [prop.type, prop.required ? "required" : null].filter(Boolean).join(" · ");
+        results.push({
+          label: prop.key,
+          detail: detail || "key",
+          info: prop.description ?? (prop.enum ? `one of: ${prop.enum.join(", ")}` : undefined),
+          boost: 2,
+          apply: (view2, _c, from, to) => {
+            view2.dispatch({
+              changes: { from, to, insert: `${prop.key}: ` },
+              selection: { anchor: from + prop.key.length + 2 },
+            });
+          },
+        });
+      }
+      // Enum values for the scalar being edited.
+      if (probe.position === "value") {
+        const key = currentLineKey(regionText, localOffset);
+        const values = key ? enumAt(schema, [...probe.path, key]) : null;
+        for (const v of values ?? []) {
+          results.push({ label: v, detail: "allowed value", type: "enum", boost: 2 });
+        }
+      }
+    }
+
+    // ── 1. Inferred keys observed at this path elsewhere in the vault ────
     const stats = plugin.schemaTracker.keysAt(probe.path);
     for (const stat of stats) {
       const keyPart = stat.path.split(".").pop()!.replace(/\[\]$/, "");
-      if (!keyPart) continue;
+      if (!keyPart || schemaKeys.has(keyPart)) continue;
 
       // Only suggest keys not yet present at this path (heuristic).
-      const alreadyPresent = regionText
-        .split("\n")
-        .some((l) => l.trimStart().startsWith(`${keyPart}:`) || l.trimStart().startsWith(`- ${keyPart}:`));
+      const alreadyPresent = isPresent(keyPart);
       if (alreadyPresent && probe.path.length > 0) continue;
 
       results.push({
@@ -122,4 +157,13 @@ export function yamlCompletion(plugin: YamlEditorPlugin) {
   };
 
   return autocompletion({ override: [source] });
+}
+
+/** The key name on the line containing `offset` in `text`, or null. */
+function currentLineKey(text: string, offset: number): string | null {
+  const start = text.lastIndexOf("\n", offset - 1) + 1;
+  const end = text.indexOf("\n", offset);
+  const line = text.slice(start, end === -1 ? text.length : end);
+  const m = /^\s*(?:- )?([^:#\s][^:#]*?)\s*:/.exec(line);
+  return m ? m[1]!.trim() : null;
 }

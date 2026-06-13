@@ -21,7 +21,7 @@ To test in a real vault, symlink/copy `main.js`, `manifest.json`, `styles.css` i
 The plugin has two cooperating layers plus one vault-wide service. Understanding the split is the key to working here:
 
 1. **CodeMirror 6 editor extension** (`src/editor/`) — per-editor, per-keystroke behavior. Registered via `registerEditorExtension(yamlEditorExtension(plugin))` in [src/main.ts](src/main.ts). This is where completions, decorations, and the Tab/indent keymap live. Uses raw CodeMirror APIs and offsets.
-2. **Obsidian command/UI layer** (`src/ui/`, command handlers in `main.ts`) — discrete user-invoked actions (palette modal, quick-inserters, format/goto commands). Uses the Obsidian `Editor` API (line/ch positions), **not** CodeMirror offsets. Don't mix the two coordinate systems.
+2. **Obsidian command/UI layer** (`src/ui/`, command handlers in `main.ts`) — discrete user-invoked actions (palette modal, format/goto/quote/anchor commands). The command *logic* lives in [src/editor/commands.ts](src/editor/commands.ts) and operates on a CodeMirror `EditorView` (offsets), so it works in both editing surfaces. `main.ts` registers each via `addYamlCommand` → `checkCallback`, resolving the active view with `resolveCmView()` (a `MarkdownView`'s `editor.cm`, or `YamlFileView.cmView`). `insertFrontmatter` ([src/ui/quickadd.ts](src/ui/quickadd.ts)) is the one remaining Obsidian-`Editor` action (Markdown-only). Don't reintroduce `editorCallback` for YAML actions — it never fires in the standalone file view.
 3. **`SchemaTracker`** ([src/yaml/schema.ts](src/yaml/schema.ts)) — the only vault-scoped piece. Scans the YAML in every `.md` (frontmatter + fences) **and** standalone `.yaml`/`.yml` file (whole-document), folds observed `(path → kinds, examples, count)` into a probabilistic schema, and updates incrementally on vault modify/create/delete/rename events (`SCANNED_EXTENSIONS`). Both layers query it via `keysAt(path)`.
 
 ### The core data flow
@@ -38,6 +38,10 @@ The plugin edits YAML in two places: **inside Markdown** (frontmatter + ```yaml 
 - **`probeAt(text, offset)`** ([src/yaml/path.ts](src/yaml/path.ts)) — resolves the structural path at a cursor (e.g. `dataview › milestones[2] › title`) by an **indentation-stack walk of the lines, not the AST**. This is deliberate: the cursor is usually on an incomplete/blank line the parser can't represent yet. The `eemeli/yaml` AST (`parseRegion`) is used only for whole-region analysis (schema inference, error reporting). Know which one you need: live cursor context → `probeAt`; analyzing committed structure → AST. `probeAt` does not handle flow-style `{...}`/`[...]`.
 
 Path identity across the codebase is the string form from `pathKey()` ([src/yaml/parser.ts](src/yaml/parser.ts)): `dataview.tasks[].title` (sequence indices collapse to `[]`). The `SchemaTracker` keys on this.
+
+### Two schema sources
+
+Completions and the palette draw from both: the inferred `SchemaTracker` (above) and **explicit JSON Schemas**. `SchemaStore` ([src/yaml/schemastore.ts](src/yaml/schemastore.ts)) loads `*.json` from the configured dir via the vault *adapter* (the dir is under `.obsidian/`, outside `getFiles()`), keyed by basename and `$id`. A region opts in via `resolveSchemaName(text)` (top-level `_schema:` or a `# yaml-schema:` comment). Navigation of the schema (`schemaAtPath`/`propertiesAt`/`enumAt`, with local `$ref` deref only) is pure and tested in [src/yaml/jsonschema.ts](src/yaml/jsonschema.ts). Schema-derived completions are ranked above inferred ones (`boost`).
 
 ## Conventions & gotchas
 

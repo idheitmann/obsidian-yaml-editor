@@ -4,6 +4,7 @@ import type { SnippetTemplate } from "../types";
 import { expandDatePlaceholders, stripSnippetMarkers } from "../yaml/snippets";
 import { yamlRegions } from "../editor/mode";
 import { probeAt } from "../yaml/path";
+import { resolveSchemaName, propertiesAt, type JsonSchema } from "../yaml/jsonschema";
 import type { SchemaTracker } from "../yaml/schema";
 import YamlEditorPlugin from "../main";
 
@@ -30,6 +31,7 @@ export class SchemaPaletteModal extends SuggestModal<PaletteItem> {
   private tracker: SchemaTracker;
   private plugin: YamlEditorPlugin;
   private currentPath: string[] = [];
+  private schema: JsonSchema | null = null;
 
   constructor(app: App, view: EditorView, tracker: SchemaTracker, plugin: YamlEditorPlugin) {
     super(app);
@@ -46,6 +48,8 @@ export class SchemaPaletteModal extends SuggestModal<PaletteItem> {
       if (offset >= region.from && offset <= region.to) {
         const probe = probeAt(region.text, offset - region.from);
         if (probe) this.currentPath = probe.path.map(String);
+        const name = resolveSchemaName(region.text);
+        this.schema = name ? this.plugin.schemaStore.get(name) ?? null : null;
         break;
       }
     }
@@ -53,9 +57,21 @@ export class SchemaPaletteModal extends SuggestModal<PaletteItem> {
 
   override getSuggestions(query: string): PaletteItem[] {
     const items: PaletteItem[] = [];
-
-    // ── 1. Schema keys at current path ──────────────────────────────────
     const path = this.currentPath as import("../types").YamlPath;
+
+    // ── 0. Explicit schema properties at this path ──────────────────────
+    if (this.schema) {
+      for (const prop of propertiesAt(this.schema, path)) {
+        items.push({
+          label: prop.key,
+          hint: [prop.type, prop.required ? "required" : null].filter(Boolean).join(" · ") || undefined,
+          tags: ["schema"],
+          body: prop.enum && prop.enum.length > 0 ? `${prop.key}: ${prop.enum[0]}` : `${prop.key}: `,
+        });
+      }
+    }
+
+    // ── 1. Inferred keys at current path ────────────────────────────────
     const stats = this.tracker.keysAt(path);
     for (const stat of stats) {
       const keyPart = stat.path.split(".").pop()!.replace(/\[\]$/, "");

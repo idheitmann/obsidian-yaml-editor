@@ -24,6 +24,8 @@ As you type a key inside a YAML region, autocomplete suggests:
 
 The suggestion list is *path-aware*: at the top level of your frontmatter you'll see top-level keys; nested under `dataview:` you'll see the keys other notes nest there. Keys already present at the current level are filtered out.
 
+You can also point the plugin at **explicit JSON Schemas** for stronger, authoritative suggestions — see [Explicit schemas](#explicit-schemas) below.
+
 ### Snippet palette & snippets
 
 Two ways to insert structured YAML quickly:
@@ -82,6 +84,9 @@ All commands are in the command palette and can be assigned hotkeys via **Settin
 | YAML: Add anchor | Add an `&anchor` to the current value |
 | YAML: Reference anchor | Insert an `*alias` reference |
 | YAML: Format YAML region | Normalize indentation to 2-space multiples (no other reformatting) |
+| YAML: Reload schemas | Re-read JSON Schema files from the schema directory |
+
+Apart from *Insert frontmatter* (Markdown-only) and *Reload schemas* (global), these commands work in both Markdown notes and standalone `.yaml`/`.yml` files, and appear only when the cursor is inside a YAML region.
 
 The following work as built-in keybindings whenever the cursor is inside a YAML region (including standalone YAML files):
 
@@ -93,8 +98,6 @@ The following work as built-in keybindings whenever the cursor is inside a YAML 
 | `Cmd/Ctrl+Shift+A` | Add an anchor on the current value |
 | `Cmd/Ctrl+Shift+R` | Insert an alias reference |
 
-> Note: the command-palette commands (Toggle quotes, Go to key, Insert element, …) currently act on the Markdown editor. Inside a standalone `.yaml` file, the built-in keybindings and autocomplete work, but those palette commands don't yet target the file view.
-
 ---
 
 ## Settings
@@ -103,13 +106,53 @@ The following work as built-in keybindings whenever the cursor is inside a YAML 
 - **Show ghost text** — a faint value hint at the end of the cursor's line when it looks like it wants a value.
 - **Show path breadcrumbs** — the YAML path in the status bar.
 - **Custom snippets** — define your own palette/autocomplete snippets (id, label, hint, body).
-- **Schema directory** — a path setting reserved for explicit JSON-Schema files. *Schema support today is fully inferred from your vault; loading explicit schema files from this directory is not implemented yet.*
+- **Schema directory** — folder containing explicit JSON Schema files (see below). Default `.obsidian/yaml-schemas/`.
 
 ---
 
-## How the inferred schema works
+## How schemas work
 
-There is no schema file to maintain. The plugin builds a **probabilistic schema** by watching your vault: for every key path it sees, it records the value types, a few example values, and how often the path occurs. This updates incrementally as you create, edit, rename, and delete files. Completions and the palette are driven by this — so the more consistently you use a field across your notes, the better the suggestions get. Obsidian vaults are messy, so suggestions are ranked by frequency, not enforced as rules.
+Suggestions come from two sources that work together: an always-on inferred schema, and optional explicit JSON Schemas you provide.
+
+### Inferred schema (always on)
+
+There's nothing to set up. The plugin builds a **probabilistic schema** by watching your vault: for every key path it sees — across note frontmatter, `yaml` code blocks, and standalone `.yaml`/`.yml` files — it records the value types, a few example values, and how often the path occurs. This updates incrementally as you create, edit, rename, and delete files. The more consistently you use a field across your notes, the better the suggestions get. Vaults are messy, so these are ranked by frequency, not enforced as rules.
+
+### Explicit schemas
+
+For fields you want to standardize, drop a [JSON Schema](https://json-schema.org/) file into the schema directory (default `.obsidian/yaml-schemas/`, configurable in settings). Then opt a note or file into it:
+
+- in frontmatter or a standalone file, a top-level key: `_schema: book`
+- in a ` ```yaml ` code block, a comment: `# yaml-schema: book`
+
+`book` is either the schema file's name (`book.json`) or its `$id`. Once opted in:
+
+- **Key completions** come from the schema's `properties` at your current path, ranked above inferred suggestions and annotated with type, `required` status, and the field's `description`.
+- **Value completions** offer the `enum` values defined for the field you're editing.
+
+Nested objects, array items, and local `$ref`s (`#/$defs/...`, `#/definitions/...`) are followed. Remote `$ref`s and full validation are out of scope. After editing schema files, run **YAML: Reload schemas** (they're also loaded on startup and when you change the schema directory).
+
+A minimal example — `.obsidian/yaml-schemas/book.json`:
+
+```json
+{
+  "type": "object",
+  "required": ["title"],
+  "properties": {
+    "title": { "type": "string", "description": "Book title" },
+    "status": { "enum": ["unread", "reading", "finished"] },
+    "rating": { "type": "integer" }
+  }
+}
+```
+
+```yaml
+---
+_schema: book
+title: |
+status:   # completion offers unread / reading / finished
+---
+```
 
 ---
 

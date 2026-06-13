@@ -1,7 +1,8 @@
-import { App, MarkdownView, Plugin, PluginSettingTab, Setting } from "obsidian";
+import { App, MarkdownView, Notice, Plugin, PluginSettingTab, Setting } from "obsidian";
 import { EditorView } from "@codemirror/view";
 import { yamlEditorExtension } from "./editor/extension";
 import { SchemaTracker } from "./yaml/schema";
+import { SchemaStore } from "./yaml/schemastore";
 import { insertFrontmatter } from "./ui/quickadd";
 import { SchemaPaletteModal } from "./ui/palette";
 import { YamlFileView, VIEW_TYPE_YAML } from "./ui/yamlview";
@@ -40,6 +41,7 @@ const DEFAULT_SETTINGS: PluginSettings = {
 export default class YamlEditorPlugin extends Plugin {
   settings: PluginSettings = { ...DEFAULT_SETTINGS };
   schemaTracker!: SchemaTracker;
+  schemaStore!: SchemaStore;
   statusBarEl?: HTMLElement;
   private schemaCleanup!: () => void;
 
@@ -49,6 +51,9 @@ export default class YamlEditorPlugin extends Plugin {
     this.schemaTracker = new SchemaTracker(this.app);
     await this.schemaTracker.initialize();
     this.schemaCleanup = this.schemaTracker.attach();
+
+    this.schemaStore = new SchemaStore(this.app, () => this.settings.schemaDirPath);
+    await this.schemaStore.reload();
 
     this.statusBarEl = this.addStatusBarItem();
     this.statusBarEl.addClass("yaml-breadcrumb");
@@ -89,6 +94,15 @@ export default class YamlEditorPlugin extends Plugin {
       }).then((key) => {
         if (key) cmGotoKey(view, key);
       });
+    });
+
+    this.addCommand({
+      id: "yaml-reload-schemas",
+      name: "YAML: Reload schemas",
+      callback: async () => {
+        const n = await this.schemaStore.reload();
+        new Notice(`Loaded ${n} YAML schema${n === 1 ? "" : "s"} from ${this.settings.schemaDirPath}`);
+      },
     });
 
     this.addSettingTab(new YamlEditorSettingTab(this.app, this));
@@ -160,7 +174,11 @@ class YamlEditorSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Schema directory")
-      .setDesc("Path to JSON Schema files (relative to vault root)")
+      .setDesc(
+        "Folder of JSON Schema (.json) files. A note opts in with a top-level " +
+          "`_schema: <name>` key or a `# yaml-schema: <name>` comment, where <name> " +
+          "is the file's basename or its $id.",
+      )
       .addText((text) =>
         text
           .setValue(this.plugin.settings.schemaDirPath)
@@ -168,6 +186,7 @@ class YamlEditorSettingTab extends PluginSettingTab {
           .onChange(async (val) => {
             this.plugin.settings.schemaDirPath = val || DEFAULT_SETTINGS.schemaDirPath;
             await this.plugin.saveSettings();
+            await this.plugin.schemaStore.reload();
           }),
       );
 
