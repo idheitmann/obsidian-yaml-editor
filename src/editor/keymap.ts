@@ -1,0 +1,124 @@
+import { EditorView } from "@codemirror/view";
+import { history, indentWithTab } from "@codemirror/commands";
+import { keymap } from "@codemirror/view";
+import { indentUnit } from "@codemirror/language";
+import { findYamlRegions } from "../yaml/regions";
+
+const INDENT = "  "; // two spaces
+
+/** Check whether `pos` is inside any YAML region of `doc`. */
+function inYamlRegion(doc: string, pos: number): boolean {
+  const regions = findYamlRegions(doc);
+  for (const r of regions) {
+    if (pos >= r.from && pos <= r.to) return true;
+  }
+  return false;
+}
+
+/**
+ * Tab / Shift+Tab: indent only within YAML regions, in 2-space steps.
+ */
+function yamlTab(view: EditorView, forward: boolean): boolean {
+  const { state } = view;
+  const doc = state.doc.toString();
+  const sel = state.selection.main;
+
+  if (!inYamlRegion(doc, sel.head)) return false;
+
+  const line = state.doc.lineAt(sel.head);
+  const lineStart = line.from;
+  const lineText = line.text;
+  const currentIndent = leadingSpaces(lineText);
+  const indentChange = forward ? INDENT : " ".repeat(Math.max(0, currentIndent - 2));
+
+  if (!forward && currentIndent === 0) return false;
+
+  const afterIndent = lineStart + currentIndent;
+  view.dispatch({
+    changes: { from: lineStart, to: afterIndent, insert: indentChange },
+    selection: { anchor: sel.head + (forward ? 2 : -2) },
+  });
+  return true;
+}
+
+function leadingSpaces(line: string): number {
+  let i = 0;
+  while (i < line.length && line.charCodeAt(i) === 32) i++;
+  return i;
+}
+
+/** Insert date snippet: `YYYY-MM-DD`. */
+function insertDate(view: EditorView): boolean {
+  const now = new Date();
+  const today = now.toISOString().slice(0, 10);
+  const sel = view.state.selection.main;
+  view.dispatch({
+    changes: { from: sel.from, to: sel.to, insert: today },
+    selection: { anchor: sel.from + today.length },
+  });
+  return true;
+}
+
+/** Insert an anchor on the current node's value: `&name value`. */
+function insertAnchor(view: EditorView): boolean {
+  const name = window.prompt("Anchor name:");
+  if (!name) return false;
+  const sel = view.state.selection.main;
+  const line = view.state.doc.lineAt(sel.head);
+  const lineText = line.text;
+  const colonIdx = lineText.indexOf(": ");
+  if (colonIdx === -1) {
+    // eslint-disable-next-line no-alert
+    window.alert("No value on current line to anchor.");
+    return false;
+  }
+  const valPos = line.from + colonIdx + 2;
+  view.dispatch({
+    changes: { from: valPos, to: valPos, insert: `&${name} ` },
+    selection: { anchor: valPos + name.length + 2 },
+  });
+  return true;
+}
+
+/** Insert an alias reference: `*name`. */
+function insertAliasRef(view: EditorView): boolean {
+  const name = window.prompt("Anchor name to reference:");
+  if (!name) return false;
+  const sel = view.state.selection.main;
+  view.dispatch({
+    changes: { from: sel.from, to: sel.to, insert: `*${name}` },
+    selection: { anchor: sel.from + name.length + 1 },
+  });
+  return true;
+}
+
+/** Default keybindings for the YAML editor. */
+export const yamlKeymap: import("@codemirror/state").Extension = [
+  keymap.of([
+    {
+      key: "Tab",
+      run(view: EditorView) {
+        return yamlTab(view, true);
+      },
+      shift(view: EditorView) {
+        return yamlTab(view, false);
+      },
+    },
+    {
+      key: "Mod-Shift-d",
+      run: insertDate,
+    },
+    {
+      key: "Mod-Shift-a",
+      run: insertAnchor,
+    },
+    {
+      key: "Mod-Shift-r",
+      run: insertAliasRef,
+    },
+    // Default tab behaviour outside YAML regions
+    indentWithTab,
+  ]),
+  history(),
+  indentUnit.of("  "),
+];

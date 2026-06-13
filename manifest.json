@@ -1,0 +1,10 @@
+{
+  "id": "yaml-editor",
+  "name": "YAML Editor",
+  "version": "0.1.0",
+  "minAppVersion": "1.5.0",
+  "description": "A focused YAML editing mode for frontmatter and YAML code blocks: schema-aware completions, structural affordances, and one-keystroke element insertion.",
+  "author": "ivan",
+  "authorUrl": "https://hyphae.net",
+  "isDesktopOnly": false
+}

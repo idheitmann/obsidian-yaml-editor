@@ -1,0 +1,40 @@
+{
+  "name": "obsidian-yaml-editor",
+  "version": "0.1.0",
+  "description": "A focused YAML editing mode for Obsidian.",
+  "main": "main.js",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+    "typecheck": "tsc -noEmit -skipLibCheck"
+  },
+  "keywords": [
+    "obsidian",
+    "yaml",
+    "frontmatter",
+    "editor"
+  ],
+  "author": "ivan",
+  "license": "MIT",
+  "devDependencies": {
+    "@codemirror/autocomplete": "^6.18.0",
+    "@codemirror/commands": "^6.6.0",
+    "@codemirror/lang-yaml": "^6.1.0",
+    "@codemirror/language": "^6.10.0",
+    "@codemirror/lint": "^6.9.5",
+    "@codemirror/state": "^6.4.0",
+    "@codemirror/view": "^6.34.0",
+    "@lezer/common": "^1.2.0",
+    "@lezer/highlight": "^1.2.0",
+    "@types/node": "^20.11.0",
+    "@types/yaml": "^1.9.6",
+    "builtin-modules": "^4.0.0",
+    "esbuild": "^0.21.0",
+    "obsidian": "latest",
+    "tslib": "^2.6.0",
+    "typescript": "^5.4.0"
+  },
+  "dependencies": {
+    "yaml": "^2.5.0"
+  }
+}
