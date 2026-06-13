@@ -2,9 +2,9 @@ import { TextFileView, WorkspaceLeaf } from "obsidian";
 import { EditorState } from "@codemirror/state";
 import { EditorView, keymap, drawSelection, highlightActiveLine, lineNumbers } from "@codemirror/view";
 import { defaultKeymap, historyKeymap } from "@codemirror/commands";
-import { syntaxHighlighting, defaultHighlightStyle } from "@codemirror/language";
 import { yamlEditorExtension } from "../editor/extension";
 import { wholeDocYaml } from "../editor/mode";
+import { obsidianTheme } from "../editor/theme";
 import type YamlEditorPlugin from "../main";
 
 export const VIEW_TYPE_YAML = "yaml-editor-view";
@@ -92,7 +92,7 @@ export class YamlFileView extends TextFileView {
           lineNumbers(),
           drawSelection(),
           highlightActiveLine(),
-          syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+          obsidianTheme,
           EditorView.lineWrapping,
           EditorView.updateListener.of((u) => {
             if (u.docChanged) {
