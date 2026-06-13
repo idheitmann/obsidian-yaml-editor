@@ -6,6 +6,13 @@ import { findYamlRegions } from "./regions";
 import { classifyValue, parseRegion, pathKey } from "./parser";
 import type { SchemaKeyStat, YamlPath, YamlValueKind } from "../types";
 
+/** File extensions whose YAML content feeds the inferred schema. */
+const SCANNED_EXTENSIONS = new Set(["md", "yaml", "yml"]);
+
+function isStandaloneYaml(extension: string): boolean {
+  return extension === "yaml" || extension === "yml";
+}
+
 /**
  * Vault-wide schema inference.
  *
@@ -30,7 +37,7 @@ export class SchemaTracker {
   constructor(private app: App) {}
 
   async initialize(): Promise<void> {
-    const files = this.app.vault.getMarkdownFiles();
+    const files = this.app.vault.getFiles().filter((f) => SCANNED_EXTENSIONS.has(f.extension));
     for (const file of files) {
       await this.scan(file);
     }
@@ -42,18 +49,19 @@ export class SchemaTracker {
       500,
       true,
     );
+    const scannable = (f: unknown): f is TFile => f instanceof TFile && SCANNED_EXTENSIONS.has(f.extension);
     const onModify = this.app.vault.on("modify", (f) => {
-      if (f instanceof TFile && f.extension === "md") debounced(f);
+      if (scannable(f)) debounced(f);
     });
     const onCreate = this.app.vault.on("create", (f) => {
-      if (f instanceof TFile && f.extension === "md") void this.scan(f);
+      if (scannable(f)) void this.scan(f);
     });
     const onDelete = this.app.vault.on("delete", (f) => {
       if (f instanceof TFile) this.forget(f.path);
     });
     const onRename = this.app.vault.on("rename", (f, oldPath) => {
       this.forget(oldPath);
-      if (f instanceof TFile && f.extension === "md") void this.scan(f);
+      if (scannable(f)) void this.scan(f);
     });
     return () => {
       this.app.vault.offref(onModify);
@@ -90,8 +98,13 @@ export class SchemaTracker {
     this.forget(file.path);
 
     const contributed: Contribution[] = [];
-    for (const region of findYamlRegions(text)) {
-      const parsed = parseRegion(region.text);
+    // Standalone .yaml/.yml files are YAML in their entirety; Markdown files
+    // contribute only their frontmatter and ```yaml fences.
+    const regionTexts = isStandaloneYaml(file.extension)
+      ? [text]
+      : findYamlRegions(text).map((r) => r.text);
+    for (const regionText of regionTexts) {
+      const parsed = parseRegion(regionText);
       if (parsed.errors.length > 0) continue;
       const root = parsed.doc.contents;
       if (!root) continue;

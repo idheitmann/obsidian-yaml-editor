@@ -6,9 +6,8 @@ import {
   Completion,
 } from "@codemirror/autocomplete";
 import type { CompletionSource } from "@codemirror/autocomplete";
-import { yamlEditorState } from "./state";
 import { probeAt } from "../yaml/path";
-import { findYamlRegions } from "../yaml/regions";
+import { yamlRegions } from "./mode";
 import type { SchemaTracker } from "../yaml/schema";
 import type { SnippetTemplate } from "../types";
 import { BUILTIN_SNIPPETS, expandDatePlaceholders, toCodeMirrorSnippet } from "../yaml/snippets";
@@ -24,11 +23,10 @@ import YamlEditorPlugin from "../main";
  */
 export function yamlCompletion(plugin: YamlEditorPlugin) {
   const source: CompletionSource = (ctx: CompletionContext) => {
-    const doc = ctx.state.doc.toString();
     const offset = ctx.pos;
 
     // Find the YAML region containing the cursor.
-    const regions = findYamlRegions(doc);
+    const regions = yamlRegions(ctx.state);
     let region = null;
     let regionText = "";
     let localOffset = offset;

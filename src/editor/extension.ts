@@ -8,9 +8,9 @@ import { yamlKeymap } from "./keymap";
 import { yamlCompletion } from "./completions";
 import { yamlAffordances } from "./affordances";
 import { yamlDecorations } from "./decorations";
-import { findYamlRegions } from "../yaml/regions";
 import { probeAt, renderBreadcrumb } from "../yaml/path";
 import { yamlFoldRange } from "../yaml/fold";
+import { yamlRegions } from "./mode";
 import YamlEditorPlugin from "../main";
 
 /**
@@ -40,8 +40,7 @@ export function yamlEditorExtension(plugin: YamlEditorPlugin): Extension[] {
 
     // ── Folding (indentation-aware, scoped to YAML regions) ────────────
     foldService.of((state, lineStart) => {
-      const doc = state.doc.toString();
-      const region = findYamlRegions(doc).find(
+      const region = yamlRegions(state).find(
         (r) => lineStart >= r.from && lineStart < r.to,
       );
       if (!region) return null;
@@ -59,10 +58,9 @@ export function yamlEditorExtension(plugin: YamlEditorPlugin): Extension[] {
         el.textContent = "";
         return;
       }
-      const doc = update.state.doc.toString();
       const pos = update.state.selection.main.head;
       let text = "";
-      for (const region of findYamlRegions(doc)) {
+      for (const region of yamlRegions(update.state)) {
         if (pos >= region.from && pos <= region.to) {
           text = renderBreadcrumb(region.kind, probeAt(region.text, pos - region.from).path);
           break;

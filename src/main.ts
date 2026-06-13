@@ -3,6 +3,7 @@ import { yamlEditorExtension } from "./editor/extension";
 import { SchemaTracker } from "./yaml/schema";
 import { insertFrontmatter, insertDate, insertNow, insertAnchor, insertAlias, insertTagsQuickAdd } from "./ui/quickadd";
 import { SchemaPaletteModal } from "./ui/palette";
+import { YamlFileView, VIEW_TYPE_YAML } from "./ui/yamlview";
 import { findYamlRegions } from "./yaml/regions";
 import { locateKeyPath } from "./yaml/path";
 import { findValueSpan, toggleQuote } from "./yaml/quote";
@@ -46,6 +47,15 @@ export default class YamlEditorPlugin extends Plugin {
     this.statusBarEl.addClass("yaml-breadcrumb");
 
     this.registerEditorExtension(yamlEditorExtension(this));
+
+    // ── Standalone .yaml / .yml file view ────────────────────────────────
+    this.registerView(VIEW_TYPE_YAML, (leaf) => new YamlFileView(leaf, this));
+    try {
+      this.registerExtensions(["yaml", "yml"], VIEW_TYPE_YAML);
+    } catch (e) {
+      // Another plugin already owns these extensions; leave them be.
+      console.warn("[yaml-editor] could not register .yaml/.yml extensions", e);
+    }
 
     // ── Commands ────────────────────────────────────────────────────────
 

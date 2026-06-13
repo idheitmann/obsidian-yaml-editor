@@ -4,9 +4,9 @@ import {
   StateEffect,
 } from "@codemirror/state";
 import { EditorView, ViewPlugin, ViewUpdate } from "@codemirror/view";
-import { findYamlRegions } from "../yaml/regions";
 import { parseRegion } from "../yaml/parser";
 import { probeAt } from "../yaml/path";
+import { yamlRegions } from "./mode";
 import type { YamlRegion, PathProbe } from "../types";
 
 /**
@@ -26,22 +26,21 @@ export interface YamlEditorState {
 export const setYamlState = StateEffect.define<YamlEditorState>();
 
 export const yamlStateField = StateField.define<YamlEditorState>({
-  create() {
-    return emptyState();
+  create(state) {
+    return computeState(state);
   },
 
   update(state, tr) {
     // Always recompute on doc change — incremental updates are too fragile
     // given that YAML regions can shift when the user types near fences.
     if (tr.docChanged) {
-      return computeState(tr.newDoc.toString());
+      return computeState(tr.state);
     }
     // Still update probes for selection-only changes.
     if (tr.selection) {
       const probes = new Map<number, PathProbe>();
-      const doc = tr.newDoc.toString();
       for (const range of tr.state.selection.ranges) {
-        const probe = resolveProbe(doc, range.head);
+        const probe = resolveProbe(tr.state, range.head);
         if (probe) probes.set(range.head, probe);
       }
       return { ...state, probes };
@@ -52,16 +51,11 @@ export const yamlStateField = StateField.define<YamlEditorState>({
 
 });
 
-/** Empty / default state. */
-function emptyState(): YamlEditorState {
-  return { regions: [], probes: new Map(), parseErrors: new Map() };
-}
-
 /**
  * Full recompute: find all regions, parse each one, build error map.
  */
-function computeState(doc: string): YamlEditorState {
-  const regions = findYamlRegions(doc);
+function computeState(state: EditorState): YamlEditorState {
+  const regions = yamlRegions(state);
   const parseErrors = new Map<number, { from: number; to: number; message: string }[]>();
   for (let i = 0; i < regions.length; i++) {
     const { errors } = parseRegion(regions[i]!.text);
@@ -74,9 +68,8 @@ function computeState(doc: string): YamlEditorState {
  * Lightweight probe recompute: just find the region containing `pos`
  * and run probeAt on it. Used when the doc hasn't changed but the cursor moved.
  */
-function resolveProbe(doc: string, pos: number): PathProbe | null {
-  const regions = findYamlRegions(doc);
-  for (const region of regions) {
+function resolveProbe(state: EditorState, pos: number): PathProbe | null {
+  for (const region of yamlRegions(state)) {
     if (pos >= region.from && pos <= region.to) {
       return probeAt(region.text, pos - region.from);
     }
@@ -102,13 +95,12 @@ export const yamlViewPlugin = ViewPlugin.fromClass(
     update(update: ViewUpdate) {
       if (!update.docChanged && !update.selectionSet) return;
 
-      const doc = update.state.doc.toString();
       const extState = yamlEditorState(update.state);
       if (!extState) return;
 
       const probes = new Map<number, PathProbe>();
       for (const range of update.state.selection.ranges) {
-        const probe = resolveProbe(doc, range.head);
+        const probe = resolveProbe(update.state, range.head);
         if (probe) probes.set(range.head, probe);
       }
 

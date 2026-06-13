@@ -35,6 +35,26 @@
   text-underline-offset: 2px;
 }
 
+/* ── Standalone .yaml / .yml file view ─────────────────────────────────── */
+
+.yaml-editor-view {
+  height: 100%;
+  overflow: hidden;
+}
+
+.yaml-editor-view .cm-editor {
+  height: 100%;
+}
+
+.yaml-editor-view .cm-scroller {
+  overflow: auto;
+  font-family: var(--font-monospace, monospace);
+}
+
+.yaml-editor-view .cm-editor.cm-focused {
+  outline: none;
+}
+
 /* ── Status bar breadcrumb ─────────────────────────────────────────────── */
 
 .yaml-breadcrumb {

@@ -3,10 +3,13 @@ import { SchemaTracker } from "../src/yaml/schema";
 
 /** Build a tracker whose vault is the given map of path -> file contents. */
 function trackerFor(files: Record<string, string>) {
-  const fileObjs = Object.keys(files).map((path) => ({ path, extension: "md" }));
+  const fileObjs = Object.keys(files).map((path) => ({
+    path,
+    extension: path.split(".").pop() ?? "md",
+  }));
   const app = {
     vault: {
-      getMarkdownFiles: () => fileObjs,
+      getFiles: () => fileObjs,
       cachedRead: async (f: { path: string }) => files[f.path] ?? "",
     },
   };
@@ -47,6 +50,20 @@ describe("SchemaTracker", () => {
     expect(stat.count).toBe(1); // still one occurrence, not two
     expect(stat.kinds.integer).toBeUndefined(); // old kind fully reversed
     expect(stat.kinds.string).toBe(1);
+  });
+
+  it("scans standalone .yaml files as whole-document YAML", async () => {
+    const { tracker } = trackerFor({
+      "_index.yaml": "version: 1\nentries:\n  - name: a\n  - name: b\n",
+      "note.md": "---\nversion: 2\n---\n",
+    });
+    await tracker.initialize();
+    // top-level `version` seen in both the .yaml file and the .md frontmatter
+    expect(tracker.get("version")!.count).toBe(2);
+    // nested key only reachable if the whole .yaml file was parsed (two items)
+    expect(tracker.get("entries[].name")!.count).toBe(2);
+    // and it is queryable as a child of a sequence element
+    expect(tracker.keysAt(["entries", 0]).map((s) => s.path)).toContain("entries[].name");
   });
 
   it("queries child keys at a nested path", async () => {

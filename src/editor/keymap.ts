@@ -3,16 +3,16 @@ import { EditorView } from "@codemirror/view";
 import { history, indentWithTab } from "@codemirror/commands";
 import { keymap } from "@codemirror/view";
 import { indentUnit } from "@codemirror/language";
-import { findYamlRegions } from "../yaml/regions";
+import type { EditorState } from "@codemirror/state";
 import { promptForString } from "../ui/prompt";
 import { computeEnter } from "./indent";
+import { yamlRegions } from "./mode";
 
 const INDENT = "  "; // two spaces
 
-/** Check whether `pos` is inside any YAML region of `doc`. */
-function inYamlRegion(doc: string, pos: number): boolean {
-  const regions = findYamlRegions(doc);
-  for (const r of regions) {
+/** Check whether `pos` is inside any YAML region of the given state. */
+function inYamlRegion(state: EditorState, pos: number): boolean {
+  for (const r of yamlRegions(state)) {
     if (pos >= r.from && pos <= r.to) return true;
   }
   return false;
@@ -23,10 +23,9 @@ function inYamlRegion(doc: string, pos: number): boolean {
  */
 function yamlTab(view: EditorView, forward: boolean): boolean {
   const { state } = view;
-  const doc = state.doc.toString();
   const sel = state.selection.main;
 
-  if (!inYamlRegion(doc, sel.head)) return false;
+  if (!inYamlRegion(state, sel.head)) return false;
 
   const line = state.doc.lineAt(sel.head);
   const lineStart = line.from;
@@ -60,8 +59,7 @@ function yamlEnter(view: EditorView): boolean {
   const { state } = view;
   const sel = state.selection.main;
   if (!sel.empty) return false;
-  const doc = state.doc.toString();
-  if (!inYamlRegion(doc, sel.head)) return false;
+  if (!inYamlRegion(state, sel.head)) return false;
 
   const line = state.doc.lineAt(sel.head);
   if (sel.head !== line.to) return false; // mid-line Enter → default split
