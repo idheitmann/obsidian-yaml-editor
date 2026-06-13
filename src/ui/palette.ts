@@ -1,7 +1,8 @@
-import { App, Editor, SuggestModal } from "obsidian";
+import { App, SuggestModal } from "obsidian";
+import { EditorView } from "@codemirror/view";
 import type { SnippetTemplate } from "../types";
 import { expandDatePlaceholders, stripSnippetMarkers } from "../yaml/snippets";
-import { findYamlRegions } from "../yaml/regions";
+import { yamlRegions } from "../editor/mode";
 import { probeAt } from "../yaml/path";
 import type { SchemaTracker } from "../yaml/schema";
 import YamlEditorPlugin from "../main";
@@ -25,14 +26,14 @@ interface PaletteItem {
  *   - Custom user snippets from settings
  */
 export class SchemaPaletteModal extends SuggestModal<PaletteItem> {
-  private editor: Editor;
+  private view: EditorView;
   private tracker: SchemaTracker;
   private plugin: YamlEditorPlugin;
   private currentPath: string[] = [];
 
-  constructor(app: App, editor: Editor, tracker: SchemaTracker, plugin: YamlEditorPlugin) {
+  constructor(app: App, view: EditorView, tracker: SchemaTracker, plugin: YamlEditorPlugin) {
     super(app);
-    this.editor = editor;
+    this.view = view;
     this.tracker = tracker;
     this.plugin = plugin;
     this.emptyStateText = "No matching YAML elements.";
@@ -40,12 +41,8 @@ export class SchemaPaletteModal extends SuggestModal<PaletteItem> {
   }
 
   private resolvePath(): void {
-    const doc = this.editor.getValue();
-    const regions = findYamlRegions(doc);
-    const cursor = this.editor.getCursor();
-    const offset = this.editor.posToOffset(cursor);
-
-    for (const region of regions) {
+    const offset = this.view.state.selection.main.head;
+    for (const region of yamlRegions(this.view.state)) {
       if (offset >= region.from && offset <= region.to) {
         const probe = probeAt(region.text, offset - region.from);
         if (probe) this.currentPath = probe.path.map(String);
@@ -145,14 +142,12 @@ export class SchemaPaletteModal extends SuggestModal<PaletteItem> {
   }
 
   override onChooseSuggestion(item: PaletteItem, _evt: MouseEvent | KeyboardEvent): void {
-    const cursor = this.editor.getCursor();
-    const cursorOffset = this.editor.posToOffset(cursor);
-    const from = { line: cursor.line, ch: cursor.ch };
-    const to = { line: cursor.line, ch: cursor.ch };
-    this.editor.replaceRange(item.body, from, to);
-    // Advance cursor to end of inserted text.
-    const newOffset = cursorOffset + item.body.length;
-    this.editor.setCursor(this.editor.offsetToPos(newOffset));
+    const at = this.view.state.selection.main.head;
+    this.view.dispatch({
+      changes: { from: at, insert: item.body },
+      selection: { anchor: at + item.body.length },
+    });
+    this.view.focus();
   }
 
 }

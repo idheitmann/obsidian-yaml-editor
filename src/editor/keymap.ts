@@ -1,12 +1,12 @@
-import { App, Notice } from "obsidian";
+import { App } from "obsidian";
 import { EditorView } from "@codemirror/view";
 import { history, indentWithTab } from "@codemirror/commands";
 import { keymap } from "@codemirror/view";
 import { indentUnit } from "@codemirror/language";
 import type { EditorState } from "@codemirror/state";
-import { promptForString } from "../ui/prompt";
 import { computeEnter } from "./indent";
 import { yamlRegions } from "./mode";
+import { cmInsertDate, cmAddAnchor, cmReferenceAnchor } from "./commands";
 
 const INDENT = "  "; // two spaces
 
@@ -74,51 +74,6 @@ function yamlEnter(view: EditorView): boolean {
   return true;
 }
 
-/** Insert date snippet: `YYYY-MM-DD`. */
-function insertDate(view: EditorView): boolean {
-  const now = new Date();
-  const today = now.toISOString().slice(0, 10);
-  const sel = view.state.selection.main;
-  view.dispatch({
-    changes: { from: sel.from, to: sel.to, insert: today },
-    selection: { anchor: sel.from + today.length },
-  });
-  return true;
-}
-
-/** Insert an anchor on the current node's value: `&name value`. */
-function insertAnchor(view: EditorView, app: App): boolean {
-  const sel = view.state.selection.main;
-  const line = view.state.doc.lineAt(sel.head);
-  const colonIdx = line.text.indexOf(": ");
-  if (colonIdx === -1) {
-    new Notice("No value on current line to anchor.");
-    return true;
-  }
-  void promptForString(app, { title: "Anchor name", placeholder: "my-anchor" }).then((name) => {
-    if (!name) return;
-    const valPos = line.from + colonIdx + 2;
-    view.dispatch({
-      changes: { from: valPos, to: valPos, insert: `&${name} ` },
-      selection: { anchor: valPos + name.length + 2 },
-    });
-  });
-  return true;
-}
-
-/** Insert an alias reference: `*name`. */
-function insertAliasRef(view: EditorView, app: App): boolean {
-  const sel = view.state.selection.main;
-  void promptForString(app, { title: "Anchor to reference", placeholder: "my-anchor" }).then((name) => {
-    if (!name) return;
-    view.dispatch({
-      changes: { from: sel.from, to: sel.to, insert: `*${name}` },
-      selection: { anchor: sel.from + name.length + 1 },
-    });
-  });
-  return true;
-}
-
 /** Default keybindings for the YAML editor. */
 export function yamlKeymap(app: App): import("@codemirror/state").Extension {
   return [
@@ -138,15 +93,15 @@ export function yamlKeymap(app: App): import("@codemirror/state").Extension {
       },
       {
         key: "Mod-Shift-d",
-        run: insertDate,
+        run: cmInsertDate,
       },
       {
         key: "Mod-Shift-a",
-        run: (view) => insertAnchor(view, app),
+        run: (view) => cmAddAnchor(view, app),
       },
       {
         key: "Mod-Shift-r",
-        run: (view) => insertAliasRef(view, app),
+        run: (view) => cmReferenceAnchor(view, app),
       },
       // Default tab behaviour outside YAML regions
       indentWithTab,

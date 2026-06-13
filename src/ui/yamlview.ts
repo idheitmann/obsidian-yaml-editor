@@ -36,6 +36,11 @@ export class YamlFileView extends TextFileView {
     return this.file?.basename ?? "YAML";
   }
 
+  /** The underlying CodeMirror view, for command handlers. */
+  get cmView(): EditorView | null {
+    return this.editor;
+  }
+
   // ── TextFileView bridge ─────────────────────────────────────────────────
 
   getViewData(): string {

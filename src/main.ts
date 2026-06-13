@@ -1,12 +1,19 @@
-import { App, Editor, Notice, Plugin, PluginSettingTab, Setting } from "obsidian";
+import { App, MarkdownView, Plugin, PluginSettingTab, Setting } from "obsidian";
+import { EditorView } from "@codemirror/view";
 import { yamlEditorExtension } from "./editor/extension";
 import { SchemaTracker } from "./yaml/schema";
-import { insertFrontmatter, insertDate, insertNow, insertAnchor, insertAlias, insertTagsQuickAdd } from "./ui/quickadd";
+import { insertFrontmatter } from "./ui/quickadd";
 import { SchemaPaletteModal } from "./ui/palette";
 import { YamlFileView, VIEW_TYPE_YAML } from "./ui/yamlview";
-import { findYamlRegions } from "./yaml/regions";
-import { locateKeyPath } from "./yaml/path";
-import { findValueSpan, toggleQuote } from "./yaml/quote";
+import {
+  cursorInYaml,
+  cmToggleQuote,
+  cmToggleListScalar,
+  cmFormatRegion,
+  cmGotoKey,
+  cmAddAnchor,
+  cmReferenceAnchor,
+} from "./editor/commands";
 import { promptForString } from "./ui/prompt";
 import type { SnippetTemplate } from "./types";
 
@@ -65,120 +72,23 @@ export default class YamlEditorPlugin extends Plugin {
       editorCallback: (editor) => insertFrontmatter(editor),
     });
 
-    this.addCommand({
-      id: "yaml-insert-element",
-      name: "YAML: Insert element here…",
-      editorCallback: (editor) => new SchemaPaletteModal(this.app, editor, this.schemaTracker, this).open(),
-    });
-
-    this.addCommand({
-      id: "yaml-toggle-list-scalar",
-      name: "YAML: Toggle list/scalar",
-      editorCallback: (editor) => {
-        const cursor = editor.getCursor();
-        const lineText = editor.getLine(cursor.line);
-        const trimmed = lineText.trimEnd();
-        if (trimmed.endsWith("[]")) {
-          // Remove trailing `[]`
-          const newText = trimmed.slice(0, -2).trimEnd();
-          const from = { line: cursor.line, ch: lineText.length - trimmed.length };
-          const to = { line: cursor.line, ch: lineText.length };
-          editor.replaceRange(newText, from, to);
-        } else {
-          const colon = trimmed.indexOf(": ");
-          if (colon !== -1) {
-            const existingVal = trimmed.slice(colon + 2).trim();
-            const from = { line: cursor.line, ch: colon + 2 };
-            const to = { line: cursor.line, ch: lineText.length };
-            editor.replaceRange(`[${existingVal}]`, from, to);
-          }
-        }
-      },
-    });
-
-    this.addCommand({
-      id: "yaml-toggle-quotes",
-      name: "YAML: Toggle quotes on value",
-      editorCallback: (editor) => {
-        const cursor = editor.getCursor();
-        const offset = editor.posToOffset(cursor);
-        const inRegion = findYamlRegions(editor.getValue()).some(
-          (r) => offset >= r.from && offset <= r.to,
-        );
-        if (!inRegion) {
-          new Notice("Cursor is not inside a YAML region.");
-          return;
-        }
-        const lineText = editor.getLine(cursor.line);
-        const span = findValueSpan(lineText);
-        if (!span) {
-          new Notice("No scalar value on this line to quote.");
-          return;
-        }
-        editor.replaceRange(
-          toggleQuote(span.value),
-          { line: cursor.line, ch: span.start },
-          { line: cursor.line, ch: span.end },
-        );
-      },
-    });
-
-    this.addCommand({
-      id: "yaml-goto-key",
-      name: "YAML: Go to key…",
-      editorCallback: (editor) => {
-        void promptForString(this.app, {
-          title: "Go to key",
-          placeholder: "e.g. tags, dataview.project",
-        }).then((key) => {
-          if (key) this.gotoKey(editor, key);
-        });
-      },
-    });
-
-    this.addCommand({
-      id: "yaml-add-anchor",
-      name: "YAML: Add anchor",
-      editorCallback: (editor) => {
-        void insertAnchor(this.app, editor);
-      },
-    });
-
-    this.addCommand({
-      id: "yaml-reference-anchor",
-      name: "YAML: Reference anchor",
-      editorCallback: (editor) => {
-        void insertAlias(this.app, editor);
-      },
-    });
-
-    this.addCommand({
-      id: "yaml-format-region",
-      name: "YAML: Format YAML region",
-      editorCallback: (editor) => {
-        const cursor = editor.getCursor();
-        const regionStart = this.findYamlRegionStart(editor, cursor.line);
-        if (regionStart === null) return;
-        const regionEnd = this.findYamlRegionEnd(editor, cursor.line);
-        if (regionEnd === null) return;
-        const allLines = editor.getValue().split("\n");
-        const regionLines = allLines.slice(regionStart, regionEnd + 1);
-        let modified = false;
-        const fixed: string[] = [];
-        for (const ln of regionLines) {
-          const stripped = ln.trimEnd();
-          if (stripped === "") { fixed.push(""); continue; }
-          const indent = leadingSpaces(ln);
-          const normalised = indent - (indent % 2);
-          if (normalised !== indent) modified = true;
-          fixed.push(" ".repeat(normalised) + stripped.trimEnd());
-        }
-        if (!modified) return;
-        const from = { line: regionStart, ch: 0 };
-        const lastLine = allLines[regionEnd] ?? "";
-        const to = { line: regionEnd, ch: lastLine.length };
-        editor.replaceRange(fixed.join("\n") + "\n", from, to);
-      },
+    // These act on whichever YAML editor is active — a Markdown note's editor
+    // or a standalone .yaml/.yml file view — via the underlying CodeMirror view.
+    this.addYamlCommand("yaml-insert-element", "YAML: Insert element here…", (view) =>
+      new SchemaPaletteModal(this.app, view, this.schemaTracker, this).open(),
+    );
+    this.addYamlCommand("yaml-toggle-list-scalar", "YAML: Toggle list/scalar", cmToggleListScalar);
+    this.addYamlCommand("yaml-toggle-quotes", "YAML: Toggle quotes on value", cmToggleQuote);
+    this.addYamlCommand("yaml-format-region", "YAML: Format YAML region", cmFormatRegion);
+    this.addYamlCommand("yaml-add-anchor", "YAML: Add anchor", (view) => cmAddAnchor(view, this.app));
+    this.addYamlCommand("yaml-reference-anchor", "YAML: Reference anchor", (view) => cmReferenceAnchor(view, this.app));
+    this.addYamlCommand("yaml-goto-key", "YAML: Go to key…", (view) => {
+      void promptForString(this.app, {
+        title: "Go to key",
+        placeholder: "e.g. tags, dataview.project",
+      }).then((key) => {
+        if (key) cmGotoKey(view, key);
+      });
     });
 
     this.addSettingTab(new YamlEditorSettingTab(this.app, this));
@@ -208,39 +118,31 @@ export default class YamlEditorPlugin extends Plugin {
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
-  private gotoKey(editor: Editor, key: string): void {
-    const segments = key.split(".").map((s) => s.trim()).filter(Boolean);
-    if (segments.length === 0) return;
-    const doc = editor.getValue();
-    for (const region of findYamlRegions(doc)) {
-      const local = locateKeyPath(region.text, segments);
-      if (local !== null) {
-        const pos = editor.offsetToPos(region.from + local);
-        editor.setCursor(pos);
-        editor.scrollIntoView({ from: pos, to: pos }, true);
-        return;
-      }
-    }
-    new Notice(`Key "${key}" not found in any YAML region.`);
+  /** The CodeMirror view of the active YAML editor (Markdown note or .yaml file), or null. */
+  private resolveCmView(): EditorView | null {
+    const yamlView = this.app.workspace.getActiveViewOfType(YamlFileView);
+    if (yamlView?.cmView) return yamlView.cmView;
+    const md = this.app.workspace.getActiveViewOfType(MarkdownView);
+    const cm = (md?.editor as unknown as { cm?: EditorView } | undefined)?.cm;
+    return cm ?? null;
   }
 
-  private findYamlRegionStart(editor: Editor, line: number): number | null {
-    const docText = editor.getValue();
-    if (docText.startsWith("---")) return 1;
-    const lines = editor.getValue().split("\n");
-    for (let i = line; i >= 0; i--) {
-      const t = (lines[i] ?? "").trim();
-      if (t.startsWith("```yaml") || t.startsWith("```yml")) return i + 1;
-    }
-    return null;
-  }
-
-  private findYamlRegionEnd(editor: Editor, line: number): number | null {
-    const lines = editor.getValue().split("\n");
-    for (let i = line; i < lines.length; i++) {
-      if ((lines[i] ?? "").trim() === "```") return i - 1;
-    }
-    return null;
+  /**
+   * Register a command that runs against the active YAML editor's CodeMirror
+   * view. It's only available when the cursor is inside a YAML region, so the
+   * commands don't clutter the palette in plain prose.
+   */
+  private addYamlCommand(id: string, name: string, run: (view: EditorView) => void): void {
+    this.addCommand({
+      id,
+      name,
+      checkCallback: (checking) => {
+        const view = this.resolveCmView();
+        if (!view || !cursorInYaml(view.state, view.state.selection.main.head)) return false;
+        if (!checking) run(view);
+        return true;
+      },
+    });
   }
 }
 
@@ -355,12 +257,4 @@ class YamlEditorSettingTab extends PluginSettingTab {
       b.setButtonText("Add snippet").setIcon("plus").onClick(() => addSnippetRow()),
     );
   }
-}
-
-// ── Util ─────────────────────────────────────────────────────────────────────
-
-function leadingSpaces(line: string): number {
-  let i = 0;
-  while (i < line.length && line.charCodeAt(i) === 32) i++;
-  return i;
 }
