@@ -3,6 +3,9 @@ import { yamlEditorExtension } from "./editor/extension";
 import { SchemaTracker } from "./yaml/schema";
 import { insertFrontmatter, insertDate, insertNow, insertAnchor, insertAlias, insertTagsQuickAdd } from "./ui/quickadd";
 import { SchemaPaletteModal } from "./ui/palette";
+import { findYamlRegions } from "./yaml/regions";
+import { locateKeyPath } from "./yaml/path";
+import { promptForString } from "./ui/prompt";
 import type { SnippetTemplate } from "./types";
 
 // ── Settings interface ───────────────────────────────────────────────────────
@@ -82,9 +85,12 @@ export default class YamlEditorPlugin extends Plugin {
       id: "yaml-goto-key",
       name: "YAML: Go to key…",
       editorCallback: (editor) => {
-        const key = window.prompt("Go to key path (e.g. tags, dataview.project):");
-        if (!key) return;
-        this.gotoKey(editor, key);
+        void promptForString(this.app, {
+          title: "Go to key",
+          placeholder: "e.g. tags, dataview.project",
+        }).then((key) => {
+          if (key) this.gotoKey(editor, key);
+        });
       },
     });
 
@@ -92,7 +98,7 @@ export default class YamlEditorPlugin extends Plugin {
       id: "yaml-add-anchor",
       name: "YAML: Add anchor",
       editorCallback: (editor) => {
-        insertAnchor(editor);
+        void insertAnchor(this.app, editor);
       },
     });
 
@@ -100,7 +106,7 @@ export default class YamlEditorPlugin extends Plugin {
       id: "yaml-reference-anchor",
       name: "YAML: Reference anchor",
       editorCallback: (editor) => {
-        insertAlias(editor);
+        void insertAlias(this.app, editor);
       },
     });
 
@@ -161,25 +167,19 @@ export default class YamlEditorPlugin extends Plugin {
   // ── Helpers ────────────────────────────────────────────────────────────────
 
   private gotoKey(editor: Editor, key: string): void {
-    const segments = key.split(".");
-    const lines = editor.getValue().split("\n");
-    outer:
-    for (let i = 0; i < lines.length; i++) {
-      const text = lines[i]!;
-      if (text.trimStart().startsWith(`${segments[0]}:`)) {
-        let si = 1;
-        for (let lineIdx = i + 1; lineIdx < lines.length && si < segments.length; lineIdx++) {
-          const sub = lines[lineIdx]!;
-          if (sub.trimStart().startsWith(segments[si] + ":")) si++;
-        }
-        if (si === segments.length) {
-          const lineText = lines[i]!;
-          editor.setCursor({ line: i, ch: lineText.indexOf(":") + 1 });
-          return;
-        }
+    const segments = key.split(".").map((s) => s.trim()).filter(Boolean);
+    if (segments.length === 0) return;
+    const doc = editor.getValue();
+    for (const region of findYamlRegions(doc)) {
+      const local = locateKeyPath(region.text, segments);
+      if (local !== null) {
+        const pos = editor.offsetToPos(region.from + local);
+        editor.setCursor(pos);
+        editor.scrollIntoView({ from: pos, to: pos }, true);
+        return;
       }
     }
-    new Notice(`Key "${key}" not found in YAML region.`);
+    new Notice(`Key "${key}" not found in any YAML region.`);
   }
 
   private findYamlRegionStart(editor: Editor, line: number): number | null {

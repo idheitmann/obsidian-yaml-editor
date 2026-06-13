@@ -1,6 +1,6 @@
 import { App, Editor, SuggestModal } from "obsidian";
 import type { SnippetTemplate } from "../types";
-import { expandDatePlaceholders } from "../yaml/snippets";
+import { expandDatePlaceholders, stripSnippetMarkers } from "../yaml/snippets";
 import { findYamlRegions } from "../yaml/regions";
 import { probeAt } from "../yaml/path";
 import type { SchemaTracker } from "../yaml/schema";
@@ -108,7 +108,7 @@ export class SchemaPaletteModal extends SuggestModal<PaletteItem> {
 
     // ── 6. Custom snippets from settings ────────────────────────────────
     for (const snip of this.plugin.settings.customSnippets) {
-      items.push({ label: snip.label, hint: snip.hint ?? "", tags: ["custom", ...snip.tags], body: expandDatePlaceholders(snip.body) });
+      items.push({ label: snip.label, hint: snip.hint ?? "", tags: ["custom", ...snip.tags], body: stripSnippetMarkers(expandDatePlaceholders(snip.body)) });
     }
 
     // Filter by query if provided.

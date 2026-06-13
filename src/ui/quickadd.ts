@@ -1,5 +1,6 @@
-import { Editor, Notice } from "obsidian";
+import { App, Editor, Notice } from "obsidian";
 import { expandDatePlaceholders } from "../yaml/snippets";
+import { promptForString } from "./prompt";
 
 /**
  * One-shot insertion helpers for YAML elements.
@@ -37,10 +38,7 @@ export function insertNow(editor: Editor): void {
  * Insert an anchor on the value of the current line.
  * e.g. on `title: My Book` → `title: &mybook My Book`
  */
-export function insertAnchor(editor: Editor, nodeKey?: string): void {
-  const name = nodeKey ?? window.prompt("Anchor name:");
-  if (!name) return;
-
+export async function insertAnchor(app: App, editor: Editor, nodeKey?: string): Promise<void> {
   const cursor = editor.getCursor();
   const lineText = editor.getLine(cursor.line);
   const colon = lineText.indexOf(": ");
@@ -48,6 +46,9 @@ export function insertAnchor(editor: Editor, nodeKey?: string): void {
     new Notice("No value found on current line to anchor.");
     return;
   }
+
+  const name = nodeKey ?? (await promptForString(app, { title: "Anchor name", placeholder: "my-anchor" }));
+  if (!name) return;
 
   const afterColon = lineText.slice(colon + 2);
   const newVal = `&${name} ${afterColon}`;
@@ -61,8 +62,8 @@ export function insertAnchor(editor: Editor, nodeKey?: string): void {
 /**
  * Insert an alias reference at the cursor.
  */
-export function insertAlias(editor: Editor, anchorName?: string): void {
-  const name = anchorName ?? window.prompt("Anchor name to reference:");
+export async function insertAlias(app: App, editor: Editor, anchorName?: string): Promise<void> {
+  const name = anchorName ?? (await promptForString(app, { title: "Anchor to reference", placeholder: "my-anchor" }));
   if (!name) return;
   const cursor = editor.getCursor();
   const text = `*${name}`;

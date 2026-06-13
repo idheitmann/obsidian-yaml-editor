@@ -96,6 +96,49 @@ export function probeAt(text: string, offset: number): PathProbe {
   return { path, position, indent: cursorIndent, inSequence };
 }
 
+/**
+ * Find the position of a dotted key path (e.g. `dataview.project`) within a
+ * region's text, using the same indentation-stack walk as {@link probeAt}.
+ * Returns the region-local offset just after the matched key's colon (a good
+ * cursor landing spot), or null if no key has exactly that path.
+ *
+ * Unlike a naive line scan, this respects nesting: `a.b` only matches a `b:`
+ * that is actually a child of `a:`, not any `b:` that happens to appear below.
+ */
+export function locateKeyPath(text: string, segments: string[]): number | null {
+  if (segments.length === 0) return null;
+  const lines = splitLines(text);
+  const stack: { indent: number; key: string }[] = [];
+
+  for (const line of lines) {
+    const raw = line.text;
+    if (isBlankOrComment(raw)) continue;
+
+    const indent = leadingSpaces(raw);
+    const stripped = raw.slice(indent);
+    const dashWidth = stripped.startsWith("- ") ? 2 : 0;
+    const keyStr = stripped.slice(dashWidth);
+
+    while (stack.length > 0 && stack[stack.length - 1]!.indent >= indent) {
+      stack.pop();
+    }
+
+    const km = matchKey(keyStr);
+    if (!km) continue;
+
+    const path = [...stack.map((f) => f.key), km.key];
+    if (pathEquals(path, segments)) {
+      return line.start + indent + dashWidth + km.keyEnd + 1;
+    }
+    stack.push({ indent, key: km.key });
+  }
+  return null;
+}
+
+function pathEquals(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((seg, i) => seg === b[i]);
+}
+
 interface LineInfo {
   text: string;
   start: number;

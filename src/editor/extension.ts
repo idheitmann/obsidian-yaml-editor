@@ -28,11 +28,11 @@ export function yamlEditorExtension(plugin: YamlEditorPlugin): Extension[] {
     yamlCompletion(plugin),
 
     // ── Visual affordances ─────────────────────────────────────────────
-    yamlAffordances(),
+    yamlAffordances(plugin),
     yamlDecorations(),
 
     // ── Keybindings ────────────────────────────────────────────────────
-    yamlKeymap,
+    yamlKeymap(plugin.app),
 
     // ── Linter (parse errors surfaced as squiggly underlines) ──────────
     linter(

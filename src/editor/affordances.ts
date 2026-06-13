@@ -2,11 +2,11 @@ import {
   Decoration,
   DecorationSet,
   EditorView,
-  ViewPlugin,
   WidgetType,
 } from "@codemirror/view";
 import { RangeSetBuilder, StateField } from "@codemirror/state";
-import { yamlEditorState, yamlStateField, yamlViewPlugin } from "./state";
+import { yamlStateField, yamlViewPlugin } from "./state";
+import type YamlEditorPlugin from "../main";
 
 // ── Ghost text widget ───────────────────────────────────────────────────────
 
@@ -34,57 +34,84 @@ class GhostTextWidget extends WidgetType {
 
 // ── Affordances StateField ───────────────────────────────────────────────────
 
-const affordancesField = StateField.define<DecorationSet>({
-  create() {
-    return Decoration.none;
-  },
+function buildAffordances(
+  plugin: YamlEditorPlugin,
+): StateField<DecorationSet> {
+  return StateField.define<DecorationSet>({
+    create() {
+      return Decoration.none;
+    },
 
-  update(decos, tr) {
-    decos = decos.map(tr.changes);
-    if (!tr.docChanged) return decos;
+    update(decos, tr) {
+      decos = decos.map(tr.changes);
+      // Ghost text follows the cursor, so we must also recompute when only
+      // the selection moves — not just on document edits.
+      if (!tr.docChanged && !tr.selection) return decos;
 
-    const doc = tr.newDoc.toString();
-    const extState = tr.state.field(yamlStateField, false);
-    if (!extState) return decos;
+      const extState = tr.state.field(yamlStateField, false);
+      if (!extState) return decos;
 
-    const builder = new RangeSetBuilder<Decoration>();
-    const { regions, parseErrors } = extState;
+      const builder = new RangeSetBuilder<Decoration>();
+      const { regions, parseErrors } = extState;
+      const cursor = tr.state.selection.main.head;
+      const showGhost = plugin.settings.showGhostText;
 
-    for (let i = 0; i < regions.length; i++) {
-      const region = regions[i]!;
+      for (let i = 0; i < regions.length; i++) {
+        const region = regions[i]!;
 
-      // Error underline on region text.
-      if (parseErrors.has(i)) {
-        const dec = Decoration.mark({ class: "yaml-error-underline" });
-        builder.add(region.from, region.to, dec);
-      }
-
-      // Ghost text on lines that look like they want a value.
-      const lines = region.text.split("\n");
-      let offset = region.from;
-      for (let li = 0; li < lines.length; li++) {
-        const line = lines[li]!;
-        const trimmed = line.trimEnd();
-        if (trimmed.endsWith(": ") && !trimmed.includes("[") && !trimmed.includes("#")) {
-          const widget = Decoration.widget({ widget: new GhostTextWidget("[ ]"), side: 1 });
-          builder.add(offset + line.length, offset + line.length, widget);
-        } else if (trimmed.endsWith(": []") || trimmed.endsWith(": {}")) {
-          const widget = Decoration.widget({ widget: new GhostTextWidget(""), side: 1 });
-          builder.add(offset + line.length, offset + line.length, widget);
+        // Error underline spanning the region's text.
+        if (parseErrors.has(i)) {
+          builder.add(
+            region.from,
+            region.to,
+            Decoration.mark({ class: "yaml-error-underline" }),
+          );
         }
-        offset += line.length + 1;
-      }
-    }
 
-    return builder.finish();
-  },
-});
+        // Ghost text — only on the cursor's own line, and only when the line
+        // is a key awaiting a value. Quiet by default (SPEC design principle 2).
+        if (showGhost && cursor >= region.from && cursor <= region.to) {
+          const lines = region.text.split("\n");
+          let offset = region.from;
+          for (const line of lines) {
+            const lineEnd = offset + line.length;
+            if (cursor >= offset && cursor <= lineEnd) {
+              const trimmed = line.trimEnd();
+              if (
+                trimmed.endsWith(":") &&
+                !trimmed.includes("#") &&
+                cursor === lineEnd
+              ) {
+                builder.add(
+                  lineEnd,
+                  lineEnd,
+                  Decoration.widget({
+                    widget: new GhostTextWidget(" value"),
+                    side: 1,
+                  }),
+                );
+              }
+              break;
+            }
+            offset = lineEnd + 1;
+          }
+        }
+      }
+
+      return builder.finish();
+    },
+
+    provide: (field) => EditorView.decorations.from(field),
+  });
+}
 
 // ── Public extension ─────────────────────────────────────────────────────────
 
-export function yamlAffordances(): import("@codemirror/state").Extension {
+export function yamlAffordances(
+  plugin: YamlEditorPlugin,
+): import("@codemirror/state").Extension {
   return [
-    affordancesField,
+    buildAffordances(plugin),
     yamlViewPlugin,
     EditorView.baseTheme({
       ".yaml-error-underline": {

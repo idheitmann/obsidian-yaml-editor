@@ -150,3 +150,35 @@ export function expandDatePlaceholders(body: string, now: Date = new Date()): st
   const nowIso = now.toISOString();
   return body.replace(/\$\{TODAY\}/g, today).replace(/\$\{NOW\}/g, nowIso);
 }
+
+/**
+ * Convert a snippet body written in our LSP-ish dialect into the syntax that
+ * CodeMirror's `snippet()`/`snippetCompletion()` understands.
+ *
+ * CodeMirror supports `${1:label}`, `${1}`, `${label}`, and `${}` fields, but
+ * NOT VS Code's choice syntax `${1|a,b|}` or the `${0}` final-tab-stop marker.
+ * We normalise both: choices collapse to their first option, and `${0}` markers
+ * are dropped (CM ends at the last field, which is the desired behaviour).
+ */
+export function toCodeMirrorSnippet(body: string): string {
+  return body
+    // ${1|a,b,c|}  ->  ${1:a}
+    .replace(/\$\{(\d+)\|([^|}]*)\|\}/g, (_m, n: string, opts: string) => `\${${n}:${opts.split(",")[0]}}`)
+    // ${0} or ${0:...}  ->  (removed; CM has no explicit final stop)
+    .replace(/\$\{0(?::[^}]*)?\}/g, "");
+}
+
+/**
+ * Strip all tab-stop markers from a snippet body, leaving plain text. Used by
+ * insertion paths that can't drive an interactive snippet (the palette modal,
+ * which goes through Obsidian's Editor API rather than CodeMirror).
+ */
+export function stripSnippetMarkers(body: string): string {
+  return body
+    // ${1|a,b|} -> a
+    .replace(/\$\{\d+\|([^|}]*)\|\}/g, (_m, opts: string) => opts.split(",")[0] ?? "")
+    // ${1:default} -> default
+    .replace(/\$\{\d+:([^}]*)\}/g, "$1")
+    // ${1} / ${0} -> (removed)
+    .replace(/\$\{\d+\}/g, "");
+}

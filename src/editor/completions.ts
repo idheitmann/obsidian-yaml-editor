@@ -1,5 +1,6 @@
 import {
   autocompletion,
+  snippetCompletion,
   CompletionContext,
   CompletionResult,
   Completion,
@@ -10,7 +11,7 @@ import { probeAt } from "../yaml/path";
 import { findYamlRegions } from "../yaml/regions";
 import type { SchemaTracker } from "../yaml/schema";
 import type { SnippetTemplate } from "../types";
-import { BUILTIN_SNIPPETS, expandDatePlaceholders } from "../yaml/snippets";
+import { BUILTIN_SNIPPETS, expandDatePlaceholders, toCodeMirrorSnippet } from "../yaml/snippets";
 import YamlEditorPlugin from "../main";
 
 /**
@@ -103,19 +104,15 @@ export function yamlCompletion(plugin: YamlEditorPlugin) {
       const allSnippets = [...BUILTIN_SNIPPETS, ...(plugin.settings?.customSnippets ?? [])];
 
       for (const snip of allSnippets) {
-        const expanded = expandDatePlaceholders(snip.body, now);
-        results.push({
-          label: snip.label,
-          detail: snip.hint ?? "",
-          info: snip.tags.join(", "),
-          type: "snippet",
-          apply: (view2, _completion, from, to) => {
-            view2.dispatch({
-              changes: { from, to, insert: expanded },
-              selection: { anchor: from + expanded.length },
-            });
-          },
-        });
+        const template = toCodeMirrorSnippet(expandDatePlaceholders(snip.body, now));
+        results.push(
+          snippetCompletion(template, {
+            label: snip.label,
+            detail: snip.hint ?? "",
+            info: snip.tags.join(", "),
+            type: "snippet",
+          }),
+        );
       }
     }
 

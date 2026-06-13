@@ -17,9 +17,15 @@ import type { SchemaKeyStat, YamlPath, YamlValueKind } from "../types";
  * This is deliberately probabilistic — Obsidian vaults are messy and
  * partial. We rank suggestions by frequency, not correctness.
  */
+/** One observation a file contributes: a path key and the value kind seen there. */
+interface Contribution {
+  key: string;
+  kind: YamlValueKind;
+}
+
 export class SchemaTracker {
   private stats = new Map<string, SchemaKeyStat>();
-  private perFile = new Map<string, string[]>(); // file -> contributed pathKeys
+  private perFile = new Map<string, Contribution[]>(); // file -> contributed observations
 
   constructor(private app: App) {}
 
@@ -83,7 +89,7 @@ export class SchemaTracker {
     const text = await this.app.vault.cachedRead(file);
     this.forget(file.path);
 
-    const contributed: string[] = [];
+    const contributed: Contribution[] = [];
     for (const region of findYamlRegions(text)) {
       const parsed = parseRegion(region.text);
       if (parsed.errors.length > 0) continue;
@@ -91,8 +97,8 @@ export class SchemaTracker {
       if (!root) continue;
       walk(root, [], (path, value) => {
         const key = pathKey(path);
-        contributed.push(key);
         const kind = classifyValue(value);
+        contributed.push({ key, kind });
         const example =
           isScalar(value) && typeof value.value === "string"
             ? value.value
@@ -119,13 +125,20 @@ export class SchemaTracker {
   }
 
   private forget(filePath: string): void {
-    const keys = this.perFile.get(filePath);
-    if (!keys) return;
-    for (const k of keys) {
-      const stat = this.stats.get(k);
+    const contributions = this.perFile.get(filePath);
+    if (!contributions) return;
+    for (const { key, kind } of contributions) {
+      const stat = this.stats.get(key);
       if (!stat) continue;
       stat.count -= 1;
-      if (stat.count <= 0) this.stats.delete(k);
+      // Reverse the per-kind tally too, so type frequencies don't inflate
+      // permanently across edits and deletions.
+      const k = stat.kinds[kind];
+      if (k !== undefined) {
+        if (k <= 1) delete stat.kinds[kind];
+        else stat.kinds[kind] = k - 1;
+      }
+      if (stat.count <= 0) this.stats.delete(key);
     }
     this.perFile.delete(filePath);
   }
