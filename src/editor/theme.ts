@@ -73,6 +73,14 @@ const obsidianEditorTheme = EditorView.theme({
     border: "none",
     padding: "0 4px",
   },
+  ".cm-foldGutter .cm-gutterElement": {
+    color: "var(--text-faint)",
+    cursor: "pointer",
+    transition: "color 100ms ease-in-out",
+  },
+  ".cm-foldGutter .cm-gutterElement:hover": {
+    color: "var(--text-normal)",
+  },
 });
 
 /** CodeMirror extensions that theme the editor to match Obsidian. */

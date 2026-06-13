@@ -2,6 +2,7 @@ import { TextFileView, WorkspaceLeaf } from "obsidian";
 import { EditorState } from "@codemirror/state";
 import { EditorView, keymap, drawSelection, highlightActiveLine, lineNumbers } from "@codemirror/view";
 import { defaultKeymap, historyKeymap } from "@codemirror/commands";
+import { codeFolding, foldGutter, foldKeymap } from "@codemirror/language";
 import { yamlEditorExtension } from "../editor/extension";
 import { wholeDocYaml } from "../editor/mode";
 import { obsidianTheme } from "../editor/theme";
@@ -88,8 +89,13 @@ export class YamlFileView extends TextFileView {
           // Our YAML behavior first, so its Tab/Enter keymap takes precedence
           // over the generic editing fallback below.
           yamlEditorExtension(this.plugin),
-          keymap.of([...defaultKeymap, ...historyKeymap]),
+          keymap.of([...defaultKeymap, ...historyKeymap, ...foldKeymap]),
           lineNumbers(),
+          // Folding state + gutter. The fold *ranges* come from the foldService
+          // in yamlEditorExtension; this provides the UI to act on them. (The
+          // Markdown editor reuses Obsidian's own fold machinery instead.)
+          codeFolding(),
+          foldGutter(),
           drawSelection(),
           highlightActiveLine(),
           obsidianTheme,
