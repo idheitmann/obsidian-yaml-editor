@@ -39,9 +39,11 @@ Path identity across the codebase is the string form from `pathKey()` ([src/yaml
 
 - **Two settings definitions exist.** `main.ts` defines the live `PluginSettings` interface + `DEFAULT_SETTINGS` it actually uses; [src/settings.ts](src/settings.ts) has an unused `PluginSettings` class. Edit the one in `main.ts`.
 - **Snippet bodies use `${1:placeholder}` tab-stop syntax** (CodeMirror snippet format) defined in [src/yaml/snippets.ts](src/yaml/snippets.ts). `expandDatePlaceholders` only substitutes `${TODAY}`/`${NOW}` and leaves tab stops intact — so a body inserted via a plain `replaceRange`/`changes` will leak literal `${1:...}` text. Insertion paths must go through CodeMirror's snippet API (or strip tab stops) for these to work.
-- **Indentation is fixed at 2 spaces** (`indentUnit.of("  ")`, the `INDENT` const in [src/editor/keymap.ts](src/editor/keymap.ts)). Tab/Shift-Tab only adjust indent inside YAML regions and fall through to default behavior elsewhere.
-- `src/editor/indent.ts` exports `nextLineIndent` but it is **not currently wired into the keymap** — auto-indent-on-Enter is unimplemented despite being in the spec.
-- Decoration `StateField`s must expose themselves via `provide: f => EditorView.decorations.from(f)` to render. `decorations.ts` does this; verify any new decoration field does too.
+- **Indentation is fixed at 2 spaces** (`indentUnit.of("  ")`, the `INDENT` const in [src/editor/keymap.ts](src/editor/keymap.ts)). Tab/Shift-Tab and Enter only adjust indent inside YAML regions and fall through to default behavior elsewhere.
+- The keymap's `yamlEnter`/`yamlTab` handlers delegate their decision to pure helpers (`computeEnter` in [src/editor/indent.ts](src/editor/indent.ts)) so the logic is unit-tested. Follow this pattern: keep editor-edit *decisions* pure and tested; the keymap/command just applies the result. Same for quoting ([src/yaml/quote.ts](src/yaml/quote.ts)), folding ([src/yaml/fold.ts](src/yaml/fold.ts)), breadcrumbs and key-location ([src/yaml/path.ts](src/yaml/path.ts)).
+- **Quoting is correct-YAML, not literal-spec.** `needsQuoting` only flags `: `/` #`/leading-indicator/reserved cases — it deliberately does NOT quote every value containing a `:` (URLs stay bare). Exposed as the explicit "Toggle quotes on value" command rather than live auto-quoting (honors the user's text; avoids surprise edits mid-type).
+- **Folding** is contributed via `foldService.of(...)` only ([src/editor/extension.ts](src/editor/extension.ts)) — it relies on Obsidian's existing fold gutter/state rather than adding our own `codeFolding()`/`foldGutter()` (which would duplicate Obsidian's and conflict).
+- Decoration `StateField`s must expose themselves via `provide: f => EditorView.decorations.from(f)` to render. `decorations.ts` and `affordances.ts` do this; verify any new decoration field does too.
 
 ## Manifest / release
 

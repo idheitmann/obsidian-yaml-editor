@@ -1,6 +1,25 @@
 import type { PathProbe, YamlPath } from "../types";
 
 /**
+ * Render a YAML path as a status-bar breadcrumb, e.g.
+ * `frontmatter › project › milestones[2] › title`. Sequence indices attach to
+ * the preceding key rather than becoming their own crumb.
+ */
+export function renderBreadcrumb(kind: "frontmatter" | "codeblock", path: YamlPath): string {
+  const head = kind === "frontmatter" ? "frontmatter" : "yaml";
+  const parts: string[] = [];
+  for (const seg of path) {
+    if (typeof seg === "number") {
+      if (parts.length > 0) parts[parts.length - 1] += `[${seg}]`;
+      else parts.push(`[${seg}]`);
+    } else {
+      parts.push(seg);
+    }
+  }
+  return parts.length > 0 ? `${head} › ${parts.join(" › ")}` : head;
+}
+
+/**
  * Resolve the structural YAML path at a cursor offset in a region's text.
  *
  * We don't rely on the AST for this because the cursor is often on an

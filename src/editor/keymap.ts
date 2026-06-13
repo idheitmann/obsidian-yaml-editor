@@ -5,6 +5,7 @@ import { keymap } from "@codemirror/view";
 import { indentUnit } from "@codemirror/language";
 import { findYamlRegions } from "../yaml/regions";
 import { promptForString } from "../ui/prompt";
+import { computeEnter } from "./indent";
 
 const INDENT = "  "; // two spaces
 
@@ -47,6 +48,32 @@ function leadingSpaces(line: string): number {
   let i = 0;
   while (i < line.length && line.charCodeAt(i) === 32) i++;
   return i;
+}
+
+/**
+ * Enter inside a YAML region: insert a newline pre-indented to match the
+ * structure (continue sequences, open nested blocks). Falls through to the
+ * editor default outside YAML regions, on multi-cursor/range selections, or
+ * when the cursor isn't at the end of its line.
+ */
+function yamlEnter(view: EditorView): boolean {
+  const { state } = view;
+  const sel = state.selection.main;
+  if (!sel.empty) return false;
+  const doc = state.doc.toString();
+  if (!inYamlRegion(doc, sel.head)) return false;
+
+  const line = state.doc.lineAt(sel.head);
+  if (sel.head !== line.to) return false; // mid-line Enter → default split
+
+  const { newIndent, prefix } = computeEnter(line.text);
+  const insert = "\n" + " ".repeat(newIndent) + prefix;
+  view.dispatch({
+    changes: { from: sel.head, insert },
+    selection: { anchor: sel.head + insert.length },
+    scrollIntoView: true,
+  });
+  return true;
 }
 
 /** Insert date snippet: `YYYY-MM-DD`. */
@@ -98,6 +125,10 @@ function insertAliasRef(view: EditorView, app: App): boolean {
 export function yamlKeymap(app: App): import("@codemirror/state").Extension {
   return [
     keymap.of([
+      {
+        key: "Enter",
+        run: yamlEnter,
+      },
       {
         key: "Tab",
         run(view: EditorView) {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { probeAt, locateKeyPath } from "../src/yaml/path";
+import { probeAt, locateKeyPath, renderBreadcrumb } from "../src/yaml/path";
 
 /** Helper: build region text and resolve the probe at the `|` marker. */
 function probeAtMarker(textWithCursor: string) {
@@ -79,5 +79,24 @@ describe("locateKeyPath", () => {
 
   it("returns null for an empty segment list", () => {
     expect(locateKeyPath("a: 1\n", [])).toBeNull();
+  });
+});
+
+describe("renderBreadcrumb", () => {
+  it("shows just the region kind at the top level", () => {
+    expect(renderBreadcrumb("frontmatter", [])).toBe("frontmatter");
+    expect(renderBreadcrumb("codeblock", [])).toBe("yaml");
+  });
+
+  it("joins keys with a separator", () => {
+    expect(renderBreadcrumb("frontmatter", ["project", "title"])).toBe(
+      "frontmatter › project › title",
+    );
+  });
+
+  it("attaches sequence indices to the preceding key", () => {
+    expect(renderBreadcrumb("frontmatter", ["milestones", 2, "title"])).toBe(
+      "frontmatter › milestones[2] › title",
+    );
   });
 });

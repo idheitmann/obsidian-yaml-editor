@@ -5,6 +5,7 @@ import { insertFrontmatter, insertDate, insertNow, insertAnchor, insertAlias, in
 import { SchemaPaletteModal } from "./ui/palette";
 import { findYamlRegions } from "./yaml/regions";
 import { locateKeyPath } from "./yaml/path";
+import { findValueSpan, toggleQuote } from "./yaml/quote";
 import { promptForString } from "./ui/prompt";
 import type { SnippetTemplate } from "./types";
 
@@ -31,6 +32,7 @@ const DEFAULT_SETTINGS: PluginSettings = {
 export default class YamlEditorPlugin extends Plugin {
   settings: PluginSettings = { ...DEFAULT_SETTINGS };
   schemaTracker!: SchemaTracker;
+  statusBarEl?: HTMLElement;
   private schemaCleanup!: () => void;
 
   override async onload(): Promise<void> {
@@ -39,6 +41,9 @@ export default class YamlEditorPlugin extends Plugin {
     this.schemaTracker = new SchemaTracker(this.app);
     await this.schemaTracker.initialize();
     this.schemaCleanup = this.schemaTracker.attach();
+
+    this.statusBarEl = this.addStatusBarItem();
+    this.statusBarEl.addClass("yaml-breadcrumb");
 
     this.registerEditorExtension(yamlEditorExtension(this));
 
@@ -78,6 +83,33 @@ export default class YamlEditorPlugin extends Plugin {
             editor.replaceRange(`[${existingVal}]`, from, to);
           }
         }
+      },
+    });
+
+    this.addCommand({
+      id: "yaml-toggle-quotes",
+      name: "YAML: Toggle quotes on value",
+      editorCallback: (editor) => {
+        const cursor = editor.getCursor();
+        const offset = editor.posToOffset(cursor);
+        const inRegion = findYamlRegions(editor.getValue()).some(
+          (r) => offset >= r.from && offset <= r.to,
+        );
+        if (!inRegion) {
+          new Notice("Cursor is not inside a YAML region.");
+          return;
+        }
+        const lineText = editor.getLine(cursor.line);
+        const span = findValueSpan(lineText);
+        if (!span) {
+          new Notice("No scalar value on this line to quote.");
+          return;
+        }
+        editor.replaceRange(
+          toggleQuote(span.value),
+          { line: cursor.line, ch: span.start },
+          { line: cursor.line, ch: span.end },
+        );
       },
     });
 
