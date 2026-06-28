@@ -189,6 +189,16 @@ Requires Obsidian **1.5.0+**. Works on desktop and mobile (the status-bar breadc
 
 See [SPEC.md](SPEC.md) for the complete design rationale and non-goals.
 
+---
+
+## Support
+
+If this plugin saves you time or makes your YAML editing more pleasant, consider buying me a coffee ☕
+
+[!["Buy Me a Coffee"](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=flat&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/ivanheitmann)
+
+Your support helps cover development time, testing across platforms, and keeping the plugin maintained.
+
 ## License
 
 MIT
