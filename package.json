@@ -1,6 +1,6 @@
 {
   "name": "obsidian-yaml-editor",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "A structured YAML editor for Obsidian with schema-aware completions, smart indentation, folding, diagnostics, and a dedicated editing surface for standalone .yaml/.yml files.",
   "main": "main.js",
   "scripts": {
