@@ -9,7 +9,7 @@
  */
 
 const RESERVED = /^(?:y|n|yes|no|true|false|on|off|null|~)$/i;
-const LEADING_INDICATOR = /^[!&*?|>%@`"',\[\]{}#]/;
+const LEADING_INDICATOR = /^[!&*?|>%@`"',\]{}#]/;
 
 export function needsQuoting(value: string): boolean {
   if (value === "") return false;

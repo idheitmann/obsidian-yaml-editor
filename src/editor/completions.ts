@@ -165,5 +165,5 @@ function currentLineKey(text: string, offset: number): string | null {
   const end = text.indexOf("\n", offset);
   const line = text.slice(start, end === -1 ? text.length : end);
   const m = /^\s*(?:- )?([^:#\s][^:#]*?)\s*:/.exec(line);
-  return m ? m[1]!.trim() : null;
+  return m ? m[1].trim() : null;
 }

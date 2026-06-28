@@ -31,7 +31,9 @@
 /* ── Error underline ───────────────────────────────────────────────────── */
 
 .yaml-error-underline {
-  text-decoration: underline wavy var(--background-modifier-error, #e53e3e);
+  text-decoration-line: underline;
+  text-decoration-style: wavy;
+  text-decoration-color: var(--background-modifier-error, #e53e3e);
   text-underline-offset: 2px;
 }
 

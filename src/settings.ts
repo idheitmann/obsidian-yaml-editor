@@ -6,7 +6,7 @@ import type { SnippetTemplate } from "./types";
  */
 export class PluginSettings {
   /** Directory (relative to vault root) that holds JSON Schema files. */
-  schemaDirPath: string = ".obsidian/yaml-schemas/";
+  schemaDirPath: string = "yaml-schemas/";
 
   /** Show gutter icons (error dots, fold markers). */
   showGutterIcons: boolean = true;
@@ -22,7 +22,7 @@ export class PluginSettings {
 
   /** Default values (used to reset individual fields). */
   static readonly DEFAULTS: Omit<PluginSettings, keyof typeof PluginSettings.prototype> = {
-    schemaDirPath: ".obsidian/yaml-schemas/",
+    schemaDirPath: "yaml-schemas/",
     showGutterIcons: true,
     showGhostText: true,
     showBreadcrumbs: true,

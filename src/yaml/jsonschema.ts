@@ -127,11 +127,11 @@ export function resolveSchemaName(regionText: string): string | null {
     const trimmed = raw.trim();
     if (trimmed === "") continue;
     const comment = /^#\s*yaml-schema:\s*(\S.*)$/.exec(trimmed);
-    if (comment) return unquoteName(comment[1]!);
+    if (comment) return unquoteName(comment[1]);
     if (raw === trimmed) {
       // unindented → a top-level key
       const key = /^_schema:\s*(\S.*)$/.exec(trimmed);
-      if (key) return unquoteName(key[1]!);
+      if (key) return unquoteName(key[1]);
     }
   }
   return null;

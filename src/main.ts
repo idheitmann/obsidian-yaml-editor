@@ -29,7 +29,7 @@ interface PluginSettings {
 }
 
 const DEFAULT_SETTINGS: PluginSettings = {
-  schemaDirPath: ".obsidian/yaml-schemas/",
+  schemaDirPath: "yaml-schemas/",
   showGutterIcons: true,
   showGhostText: true,
   showBreadcrumbs: true,
@@ -119,7 +119,7 @@ export default class YamlEditorPlugin extends Plugin {
 
   async loadSettings(): Promise<void> {
     try {
-      const data = await super.loadData();
+      const data = await super.loadData() as Partial<PluginSettings> | null;
       this.settings = { ...DEFAULT_SETTINGS, ...data };
     } catch {
       this.settings = { ...DEFAULT_SETTINGS };
@@ -170,7 +170,7 @@ class YamlEditorSettingTab extends PluginSettingTab {
   override display(): void {
     const { containerEl } = this;
     containerEl.empty();
-    containerEl.createEl("h2", { text: "YAML Editor" });
+    new Setting(containerEl).setName("YAML Editor").setHeading();
 
     new Setting(containerEl)
       .setName("Schema directory")
@@ -220,7 +220,7 @@ class YamlEditorSettingTab extends PluginSettingTab {
         }),
       );
 
-    containerEl.createEl("h3", { text: "Custom Snippets" });
+    new Setting(containerEl).setName("Custom Snippets").setHeading();
 
     const rebuildSnippets = async () => {
       const rows = containerEl.querySelectorAll<HTMLElement>("[data-snippet-row]");
@@ -253,8 +253,8 @@ class YamlEditorSettingTab extends PluginSettingTab {
       ];
       for (const { key, placeholder, multiline } of fields) {
         const el = multiline
-          ? Object.assign(document.createElement("textarea"), { placeholder, rows: 2 })
-          : Object.assign(document.createElement("input"), { placeholder });
+          ? Object.assign(activeDocument.createElement("textarea"), { placeholder, rows: 2 })
+          : Object.assign(activeDocument.createElement("input"), { placeholder });
         el.setAttribute("data-field", key);
         if (snip && key in snip) {
           (el as HTMLInputElement).value = String((snip as unknown as Record<string, unknown>)[key] ?? "");

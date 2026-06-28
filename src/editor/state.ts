@@ -58,7 +58,7 @@ function computeState(state: EditorState): YamlEditorState {
   const regions = yamlRegions(state);
   const parseErrors = new Map<number, { from: number; to: number; message: string }[]>();
   for (let i = 0; i < regions.length; i++) {
-    const { errors } = parseRegion(regions[i]!.text);
+    const { errors } = parseRegion(regions[i].text);
     if (errors.length > 0) parseErrors.set(i, errors);
   }
   return { regions, probes: new Map(), parseErrors };

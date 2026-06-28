@@ -14,14 +14,14 @@ export function yamlFoldRange(
   const idx = lines.findIndex((l) => l.from === lineStartOffset);
   if (idx < 0) return null;
 
-  const cur = lines[idx]!;
+  const cur = lines[idx];
   const trimmed = cur.text.trim();
   if (trimmed === "" || trimmed.startsWith("#")) return null;
 
   const base = leadingSpaces(cur.text);
   let endTo: number | null = null;
   for (let i = idx + 1; i < lines.length; i++) {
-    const l = lines[i]!;
+    const l = lines[i];
     if (l.text.trim() === "") continue; // tentatively skip blanks
     if (leadingSpaces(l.text) > base) endTo = l.to;
     else break;

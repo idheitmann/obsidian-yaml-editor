@@ -16,7 +16,7 @@ class GhostTextWidget extends WidgetType {
   }
 
   toDOM(): HTMLElement {
-    const span = document.createElement("span");
+    const span = activeDocument.createElement("span");
     span.className = "yaml-ghost-text";
     span.textContent = this.text;
     span.setAttribute("aria-hidden", "true");
@@ -57,7 +57,7 @@ function buildAffordances(
       const showGhost = plugin.settings.showGhostText;
 
       for (let i = 0; i < regions.length; i++) {
-        const region = regions[i]!;
+        const region = regions[i];
 
         // Error underline spanning the region's text.
         if (parseErrors.has(i)) {
@@ -115,7 +115,9 @@ export function yamlAffordances(
     yamlViewPlugin,
     EditorView.baseTheme({
       ".yaml-error-underline": {
-        textDecoration: "underline wavy var(--background-modifier-error, #e53e3e)",
+        textDecorationLine: "underline",
+        textDecorationStyle: "wavy",
+        textDecorationColor: "var(--background-modifier-error, #e53e3e)",
         textUnderlineOffset: "2px",
       },
       ".yaml-ghost-text": {

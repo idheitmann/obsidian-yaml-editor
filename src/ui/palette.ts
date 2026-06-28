@@ -1,6 +1,5 @@
 import { App, SuggestModal } from "obsidian";
 import { EditorView } from "@codemirror/view";
-import type { SnippetTemplate } from "../types";
 import { expandDatePlaceholders, stripSnippetMarkers } from "../yaml/snippets";
 import { yamlRegions } from "../editor/mode";
 import { probeAt } from "../yaml/path";

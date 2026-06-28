@@ -43,14 +43,14 @@ export function probeAt(text: string, offset: number): PathProbe {
   const stack: Frame[] = [];
 
   for (let i = 0; i < cursor.line; i++) {
-    const raw = lines[i]!.text;
+    const raw = lines[i].text;
     if (isBlankOrComment(raw)) continue;
 
     const indent = leadingSpaces(raw);
     const stripped = raw.slice(indent);
 
     // Pop frames whose indent is >= this line's indent.
-    while (stack.length > 0 && stack[stack.length - 1]!.indent >= indent) {
+    while (stack.length > 0 && stack[stack.length - 1].indent >= indent) {
       stack.pop();
     }
 
@@ -88,7 +88,7 @@ export function probeAt(text: string, offset: number): PathProbe {
   }
 
   // Pop frames whose indent >= cursorIndent. Whatever remains is our path.
-  while (stack.length > 0 && stack[stack.length - 1]!.indent >= cursorIndent) {
+  while (stack.length > 0 && stack[stack.length - 1].indent >= cursorIndent) {
     stack.pop();
   }
 
@@ -138,7 +138,7 @@ export function locateKeyPath(text: string, segments: string[]): number | null {
     const dashWidth = stripped.startsWith("- ") ? 2 : 0;
     const keyStr = stripped.slice(dashWidth);
 
-    while (stack.length > 0 && stack[stack.length - 1]!.indent >= indent) {
+    while (stack.length > 0 && stack[stack.length - 1].indent >= indent) {
       stack.pop();
     }
 
@@ -179,12 +179,12 @@ function splitLines(text: string): LineInfo[] {
 function locateCursor(lines: LineInfo[], offset: number): { line: number; col: number } {
   // Binary search would be nicer; linear is fine for region sizes.
   for (let i = 0; i < lines.length; i++) {
-    const l = lines[i]!;
+    const l = lines[i];
     if (offset >= l.start && offset <= l.start + l.text.length) {
       return { line: i, col: offset - l.start };
     }
   }
-  const last = lines[lines.length - 1]!;
+  const last = lines[lines.length - 1];
   return { line: lines.length - 1, col: last.text.length };
 }
 
@@ -208,11 +208,11 @@ function isBlankOrComment(line: string): boolean {
 function matchKey(s: string): { key: string; keyEnd: number } | null {
   // Quoted key.
   const q = s.match(/^(["'])((?:\\.|(?!\1).)*)\1\s*:/);
-  if (q) return { key: q[2]!, keyEnd: q[0].length - 1 };
+  if (q) return { key: q[2], keyEnd: q[0].length - 1 };
 
   // Plain key — disallow whitespace or YAML structurals before the colon.
-  const p = s.match(/^([^\s:#&*!\[\]\{\},\?][^:#]*?)\s*:(?:\s|$)/);
-  if (p) return { key: p[1]!.trim(), keyEnd: p[0].lastIndexOf(":") };
+  const p = s.match(/^([^\s:#&*![\]{},?][^:#]*?)\s*:(?:\s|$)/);
+  if (p) return { key: p[1].trim(), keyEnd: p[0].lastIndexOf(":") };
 
   return null;
 }

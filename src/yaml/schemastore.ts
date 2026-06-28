@@ -3,7 +3,7 @@ import type { JsonSchema } from "./jsonschema";
 
 /**
  * Loads explicit JSON Schema files from a configured directory (default
- * `.obsidian/yaml-schemas/`). Files are keyed by basename (without `.json`)
+ * `yaml-schemas/` under the vault config dir). Files are keyed by basename (without `.json`)
  * and, if present, by their `$id` — either can be used in a `_schema:` /
  * `# yaml-schema:` directive.
  *
@@ -30,7 +30,8 @@ export class SchemaStore {
   /** Reload all schema files from disk. Returns the number of files loaded. */
   async reload(): Promise<number> {
     this.schemas.clear();
-    const dir = normalizePath(this.getDir());
+    const raw = this.getDir();
+    const dir = normalizePath(raw.startsWith("/") || raw.includes(":/") ? raw : `${this.app.vault.configDir}/${raw}`);
     const adapter = this.app.vault.adapter;
     let loaded = 0;
     try {

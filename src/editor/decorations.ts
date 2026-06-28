@@ -1,8 +1,7 @@
 import { Decoration, DecorationSet, EditorView } from "@codemirror/view";
 import { RangeSetBuilder, StateField } from "@codemirror/state";
-import { yamlEditorState, yamlStateField } from "./state";
+import { yamlStateField } from "./state";
 import { yamlViewPlugin } from "./state";
-import { findYamlRegions } from "../yaml/regions";
 
 /**
  * Subtle visual decorations layer.
@@ -39,7 +38,6 @@ const yamlDecorationsField = StateField.define<DecorationSet>({
     decos = decos.map(tr.changes);
     if (!tr.docChanged) return decos;
 
-    const doc = tr.newDoc.toString();
     const extState = tr.state.field(yamlStateField, false);
     if (!extState) return decos;
 
