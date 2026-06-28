@@ -115,10 +115,8 @@ export function yamlAffordances(
     yamlViewPlugin,
     EditorView.baseTheme({
       ".yaml-error-underline": {
-        textDecorationLine: "underline",
-        textDecorationStyle: "wavy",
-        textDecorationColor: "var(--background-modifier-error, #e53e3e)",
-        textUnderlineOffset: "2px",
+        borderBottom: "2px wavy var(--background-modifier-error, #e53e3e)",
+        paddingBottom: "1px",
       },
       ".yaml-ghost-text": {
         color: "var(--text-muted, #aaa)",

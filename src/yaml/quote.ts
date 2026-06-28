@@ -70,8 +70,8 @@ export function findValueSpan(line: string): ValueSpan | null {
   if (!m) m = /^(\s*- )(\S.*?)\s*$/.exec(line);
   if (!m) return null;
 
-  const start = m[1]!.length;
-  let value = m[2]!;
+  const start = m[1].length;
+  let value = m[2];
   if (!isQuoted(value)) {
     const comment = value.search(/\s#/);
     if (comment >= 0) value = value.slice(0, comment);

@@ -63,8 +63,8 @@ function* findFencedYaml(doc: string, fromOffset: number): Iterable<YamlRegion> 
   FENCE_RE.lastIndex = fromOffset;
   let m: RegExpExecArray | null;
   while ((m = FENCE_RE.exec(doc)) !== null) {
-    const fenceOpener = m[2]!;
-    const info = m[3]!;
+    const fenceOpener = m[2];
+    const info = m[3];
     const contentStart = m.index + m[0].length;
     const closeRe = new RegExp(`\\n${fenceOpener}[ \\t]*(?:\\n|$)`);
     const rest = doc.slice(contentStart);

@@ -31,10 +31,8 @@
 /* ── Error underline ───────────────────────────────────────────────────── */
 
 .yaml-error-underline {
-  text-decoration-line: underline;
-  text-decoration-style: wavy;
-  text-decoration-color: var(--background-modifier-error, #e53e3e);
-  text-underline-offset: 2px;
+  border-bottom: 2px wavy var(--background-modifier-error, #e53e3e);
+  padding-bottom: 1px;
 }
 
 /* ── Standalone .yaml / .yml file view ─────────────────────────────────── */

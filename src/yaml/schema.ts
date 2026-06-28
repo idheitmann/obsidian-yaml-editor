@@ -174,8 +174,8 @@ function walk(
     const items = (node as YAMLSeq).items as YamlNode[];
     for (let i = 0; i < items.length; i++) {
       const childPath = [...path, i];
-      visit(childPath, items[i]!);
-      walk(items[i]!, childPath, visit);
+      visit(childPath, items[i]);
+      walk(items[i], childPath, visit);
     }
   }
 }
