@@ -1,4 +1,4 @@
-import { App, MarkdownView, Notice, Plugin, PluginSettingTab, Setting } from "obsidian";
+import { App, MarkdownView, Notice, Plugin, PluginSettingTab, Setting, TFile } from "obsidian";
 import { EditorView } from "@codemirror/view";
 import { yamlEditorExtension } from "./editor/extension";
 import { SchemaTracker } from "./yaml/schema";
@@ -16,6 +16,7 @@ import {
   cmReferenceAnchor,
 } from "./editor/commands";
 import { promptForString } from "./ui/prompt";
+import type { FoldEntry } from "./editor/foldstate";
 import type { SnippetTemplate } from "./types";
 
 // ── Settings interface ───────────────────────────────────────────────────────
@@ -26,6 +27,8 @@ interface PluginSettings {
   showGhostText: boolean;
   showBreadcrumbs: boolean;
   customSnippets: SnippetTemplate[];
+  /** Persisted fold state per file path (standalone .yaml/.yml files only). */
+  savedFolds: Record<string, FoldEntry[]>;
 }
 
 const DEFAULT_SETTINGS: PluginSettings = {
@@ -34,6 +37,7 @@ const DEFAULT_SETTINGS: PluginSettings = {
   showGhostText: true,
   showBreadcrumbs: true,
   customSnippets: [],
+  savedFolds: {},
 };
 
 // ── Plugin ────────────────────────────────────────────────────────────────────
@@ -68,6 +72,20 @@ export default class YamlEditorPlugin extends Plugin {
       // Another plugin already owns these extensions; leave them be.
       console.warn("[yaml-editor] could not register .yaml/.yml extensions", e);
     }
+
+    // Keep persisted fold state in step with the vault: follow renames/moves
+    // and drop entries for deleted files, so `savedFolds` doesn't accumulate
+    // orphans or strand a file's folds under its old path.
+    this.registerEvent(
+      this.app.vault.on("rename", (f, oldPath) => {
+        if (f instanceof TFile) this.renameSavedFolds(oldPath, f.path);
+      }),
+    );
+    this.registerEvent(
+      this.app.vault.on("delete", (f) => {
+        if (f instanceof TFile) this.deleteSavedFolds(f.path);
+      }),
+    );
 
     // ── Commands ────────────────────────────────────────────────────────
 
@@ -128,6 +146,39 @@ export default class YamlEditorPlugin extends Plugin {
 
   async saveSettings(): Promise<void> {
     await super.saveData(this.settings);
+  }
+
+  // ── Fold-state persistence ────────────────────────────────────────────────
+
+  /** Persist fold state for a single file path. */
+  setSavedFolds(filePath: string, entries: FoldEntry[]): void {
+    if (entries.length === 0) {
+      delete this.settings.savedFolds[filePath];
+    } else {
+      this.settings.savedFolds[filePath] = entries;
+    }
+    void this.saveSettings();
+  }
+
+  /** Retrieve persisted fold state for a file path. */
+  getSavedFolds(filePath: string): FoldEntry[] {
+    return this.settings.savedFolds[filePath] ?? [];
+  }
+
+  /** Move persisted fold state when a file is renamed or moved. */
+  renameSavedFolds(oldPath: string, newPath: string): void {
+    const entries = this.settings.savedFolds[oldPath];
+    if (!entries) return;
+    delete this.settings.savedFolds[oldPath];
+    this.settings.savedFolds[newPath] = entries;
+    void this.saveSettings();
+  }
+
+  /** Drop persisted fold state for a deleted file. */
+  deleteSavedFolds(filePath: string): void {
+    if (!(filePath in this.settings.savedFolds)) return;
+    delete this.settings.savedFolds[filePath];
+    void this.saveSettings();
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────

@@ -116,6 +116,29 @@ export function probeAt(text: string, offset: number): PathProbe {
 }
 
 /**
+ * Compute the full YAML path of the key on the line at `offset`, including
+ * that key itself. Unlike {@link probeAt} (which returns the parent context
+ * path), this extends the path with the current line's own key when the line
+ * has one.
+ *
+ * Used for fold-state persistence: the path identifies a foldable line across
+ * document edits, even when line numbers shift.
+ */
+export function pathAtLineStart(text: string, offset: number): YamlPath {
+  const probe = probeAt(text, offset);
+  const lines = splitLines(text);
+  const cursor = locateCursor(lines, offset);
+  const cursorLine = lines[cursor.line];
+  if (!cursorLine) return probe.path;
+  const indent = leadingSpaces(cursorLine.text);
+  const stripped = cursorLine.text.slice(indent);
+  const dashWidth = stripped.startsWith("- ") ? 2 : stripped === "-" ? 1 : 0;
+  const km = matchKey(stripped.slice(dashWidth));
+  if (km) return [...probe.path, km.key];
+  return probe.path;
+}
+
+/**
  * Find the position of a dotted key path (e.g. `dataview.project`) within a
  * region's text, using the same indentation-stack walk as {@link probeAt}.
  * Returns the region-local offset just after the matched key's colon (a good

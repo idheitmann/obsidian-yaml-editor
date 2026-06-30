@@ -57,3 +57,22 @@ export function pathKey(path: YamlPath): string {
   }
   return out;
 }
+
+/**
+ * Render a YamlPath as an **instance** key like `dataview.tasks[2].title`,
+ * preserving sequence indices instead of collapsing them to `[]`.
+ *
+ * Unlike {@link pathKey} (which identifies a *schema slot* shared by every
+ * sibling in a sequence), this identifies a *single concrete node*. Use it
+ * where two siblings of a sequence must remain distinguishable — e.g.
+ * fold-state persistence, where folding `tasks[2]` and `tasks[5]` are
+ * different folds.
+ */
+export function pathInstanceKey(path: YamlPath): string {
+  let out = "";
+  for (const seg of path) {
+    if (typeof seg === "number") out += `[${seg}]`;
+    else out += out.length === 0 ? seg : `.${seg}`;
+  }
+  return out;
+}
