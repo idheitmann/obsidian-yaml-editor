@@ -29,17 +29,23 @@ function yamlTab(view: EditorView, forward: boolean): boolean {
 
   const line = state.doc.lineAt(sel.head);
   const lineStart = line.from;
-  const lineText = line.text;
-  const currentIndent = leadingSpaces(lineText);
-  const indentChange = forward ? INDENT : " ".repeat(Math.max(0, currentIndent - 2));
+  const currentIndent = leadingSpaces(line.text);
 
-  if (!forward && currentIndent === 0) return false;
-
-  const afterIndent = lineStart + currentIndent;
-  view.dispatch({
-    changes: { from: lineStart, to: afterIndent, insert: indentChange },
-    selection: { anchor: sel.head + (forward ? 2 : -2) },
-  });
+  if (forward) {
+    // Insert 2 spaces at the start of the line.
+    view.dispatch({
+      changes: { from: lineStart, to: lineStart, insert: INDENT },
+      selection: { anchor: sel.head + 2 },
+    });
+  } else {
+    // Remove up to 2 leading spaces.
+    if (currentIndent === 0) return false;
+    const remove = Math.min(2, currentIndent);
+    view.dispatch({
+      changes: { from: lineStart, to: lineStart + remove, insert: "" },
+      selection: { anchor: sel.head - remove },
+    });
+  }
   return true;
 }
 

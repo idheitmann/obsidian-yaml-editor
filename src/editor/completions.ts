@@ -7,6 +7,7 @@ import {
 } from "@codemirror/autocomplete";
 import type { CompletionSource } from "@codemirror/autocomplete";
 import { probeAt } from "../yaml/path";
+import { pathKey } from "../yaml/parser";
 import { yamlRegions } from "./mode";
 import { resolveSchemaName, propertiesAt, enumAt } from "../yaml/jsonschema";
 import { BUILTIN_SNIPPETS, expandDatePlaceholders, toCodeMirrorSnippet } from "../yaml/snippets";
@@ -44,6 +45,35 @@ export function yamlCompletion(plugin: YamlEditorPlugin) {
     const probe = probeAt(regionText, localOffset);
     if (!probe) return null;
 
+    const lineStart = regionText.lastIndexOf("\n", localOffset - 1) + 1;
+    const lineBefore = regionText.slice(lineStart, localOffset);
+
+    const editingValue = probe.position === "value" || (probe.inSequence && probe.position === "empty");
+
+    // Compute the token-start offset (`from`) and gate auto-trigger appropriately.
+    let from: number;
+    if (editingValue) {
+      if (probe.inSequence) {
+        // Sequence item value: token starts after '- '.
+        const dashIdx = lineBefore.lastIndexOf("- ");
+        from = region.from + (dashIdx !== -1 ? lineStart + dashIdx + 2 : localOffset);
+      } else {
+        // Scalar value: only auto-trigger after 'key: ' (colon + space).
+        const colonSpaceIdx = lineBefore.indexOf(": ");
+        if (colonSpaceIdx !== -1) {
+          from = region.from + lineStart + colonSpaceIdx + 2;
+        } else if (ctx.explicit) {
+          from = offset; // Ctrl+Space at bare ':' — show at cursor
+        } else {
+          return null; // bare ':' with no space — wait for the space
+        }
+      }
+    } else {
+      // Key or empty line: token starts after leading indent (and optional '- ').
+      const prefixMatch = lineBefore.match(/^(\s*(?:-\s+)?)/);
+      from = region.from + lineStart + (prefixMatch ? prefixMatch[1].length : 0);
+    }
+
     const results: Completion[] = [];
     const now = new Date();
     const schemaKeys = new Set<string>();
@@ -57,23 +87,25 @@ export function yamlCompletion(plugin: YamlEditorPlugin) {
     const schemaName = resolveSchemaName(regionText);
     const schema = schemaName ? plugin.schemaStore.get(schemaName) : undefined;
     if (schema) {
-      // Keys declared at this path.
-      for (const prop of propertiesAt(schema, probe.path)) {
-        schemaKeys.add(prop.key);
-        if (isPresent(prop.key) && probe.path.length > 0) continue;
-        const detail = [prop.type, prop.required ? "required" : null].filter(Boolean).join(" · ");
-        results.push({
-          label: prop.key,
-          detail: detail || "key",
-          info: prop.description ?? (prop.enum ? `one of: ${prop.enum.join(", ")}` : undefined),
-          boost: 2,
-          apply: (view2, _c, from, to) => {
-            view2.dispatch({
-              changes: { from, to, insert: `${prop.key}: ` },
-              selection: { anchor: from + prop.key.length + 2 },
-            });
-          },
-        });
+      // Keys declared at this path — only when not filling in a value.
+      if (!editingValue) {
+        for (const prop of propertiesAt(schema, probe.path)) {
+          schemaKeys.add(prop.key);
+          if (isPresent(prop.key) && probe.path.length > 0) continue;
+          const detail = [prop.type, prop.required ? "required" : null].filter(Boolean).join(" · ");
+          results.push({
+            label: prop.key,
+            detail: detail || "key",
+            info: prop.description ?? (prop.enum ? `one of: ${prop.enum.join(", ")}` : undefined),
+            boost: 2,
+            apply: (view2, _c, from, to) => {
+              view2.dispatch({
+                changes: { from, to, insert: `${prop.key}: ` },
+                selection: { anchor: from + prop.key.length + 2 },
+              });
+            },
+          });
+        }
       }
       // Enum values for the scalar being edited.
       if (probe.position === "value") {
@@ -86,54 +118,65 @@ export function yamlCompletion(plugin: YamlEditorPlugin) {
     }
 
     // ── 1. Inferred keys observed at this path elsewhere in the vault ────
-    const stats = plugin.schemaTracker.keysAt(probe.path);
-    for (const stat of stats) {
-      const keyPart = stat.path.split(".").pop()!.replace(/\[\]$/, "");
-      if (!keyPart || schemaKeys.has(keyPart)) continue;
+    if (!editingValue) {
+      const stats = plugin.schemaTracker.keysAt(probe.path);
+      for (const stat of stats) {
+        const keyPart = stat.path.split(".").pop()!.replace(/\[\]$/, "");
+        if (!keyPart || schemaKeys.has(keyPart)) continue;
 
-      // Only suggest keys not yet present at this path (heuristic).
-      const alreadyPresent = isPresent(keyPart);
-      if (alreadyPresent && probe.path.length > 0) continue;
+        // Only suggest keys not yet present at this path (heuristic).
+        const alreadyPresent = isPresent(keyPart);
+        if (alreadyPresent && probe.path.length > 0) continue;
 
-      results.push({
-        label: keyPart,
-        detail: stat.kinds
-          ? Object.entries(stat.kinds)
-              .filter(([, v]) => v > 0)
-              .map(([k]) => k)
-              .join(", ")
-          : "key",
-        info: stat.examples.length > 0 ? `e.g. ${stat.examples.slice(0, 3).join(", ")}` : undefined,
-        apply: (view2, _completion, from, to) => {
-          view2.dispatch({
-            changes: { from, to, insert: `${keyPart}: ` },
-            selection: { anchor: from + keyPart.length + 2 },
-          });
-        },
-      });
-    }
-
-    // ── 2. Example values for scalar keys ─────────────────────────────────
-    const firstStat = plugin.schemaTracker.keysAt(probe.path)[0];
-    const fullStat = plugin.schemaTracker.get(firstStat?.path ?? "");
-    if (fullStat && fullStat.examples.length > 0) {
-      const keyPart = fullStat.path.split(".").pop()!.replace(/\[\]$/, "");
-      for (const ex of fullStat.examples.slice(0, 6)) {
         results.push({
-          label: ex,
-          detail: `value for ${keyPart}`,
-          type: "text",
+          label: keyPart,
+          detail: stat.kinds
+            ? Object.entries(stat.kinds)
+                .filter(([, v]) => v > 0)
+                .map(([k]) => k)
+                .join(", ")
+            : "key",
+          info: stat.examples.length > 0 ? `e.g. ${stat.examples.slice(0, 3).join(", ")}` : undefined,
+          apply: (view2, _completion, from, to) => {
+            view2.dispatch({
+              changes: { from, to, insert: `${keyPart}: ` },
+              selection: { anchor: from + keyPart.length + 2 },
+            });
+          },
         });
       }
     }
 
-    // ── 3. Built-in snippet triggers ─────────────────────────────────────
-    // `: ` context triggers top-level field snippets.
-    const lineStart = regionText.lastIndexOf("\n", localOffset - 1) + 1;
-    const lineBefore = regionText.slice(lineStart, localOffset);
-    const colonSpace = lineBefore.endsWith(": ") || lineBefore.endsWith(":");
+    // ── 2. Example values for the key being edited ────────────────────────
+    if (probe.position === "value") {
+      // Cursor is after a key's colon: `related: |`
+      const key = currentLineKey(regionText, localOffset);
+      if (key) {
+        const stat = plugin.schemaTracker.get(pathKey([...probe.path, key]));
+        if (stat && stat.examples.length > 0) {
+          for (const ex of stat.examples.slice(0, 6)) {
+            results.push({ label: ex, detail: `value for ${key}`, type: "text" });
+          }
+        }
+      }
+    } else if (probe.inSequence) {
+      // Cursor is on a sequence item line: `  - |` inside a list
+      const parentStatKey = pathKey(probe.path);
+      if (parentStatKey) {
+        const stat = plugin.schemaTracker.get(`${parentStatKey}[]`);
+        if (stat && stat.examples.length > 0) {
+          const leafKey = probe.path[probe.path.length - 1];
+          const displayKey = typeof leafKey === "string" ? leafKey : parentStatKey;
+          for (const ex of stat.examples.slice(0, 6)) {
+            results.push({ label: ex, detail: `value for ${displayKey}`, type: "text" });
+          }
+        }
+      }
+    }
 
-    if (colonSpace || lineBefore.trim() === "") {
+    // ── 3. Built-in snippet triggers ─────────────────────────────────────
+    // Blank lines trigger top-level field snippets — not when filling in a value.
+    if (!editingValue && lineBefore.trim() === "") {
       const allSnippets = [...BUILTIN_SNIPPETS, ...(plugin.settings?.customSnippets ?? [])];
 
       for (const snip of allSnippets) {
@@ -150,7 +193,7 @@ export function yamlCompletion(plugin: YamlEditorPlugin) {
     }
 
     return {
-      from: offset,
+      from,
       options: results,
       validFor: /^[^\n]*$/,
     } satisfies CompletionResult;

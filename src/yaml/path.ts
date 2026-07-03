@@ -49,12 +49,22 @@ export function probeAt(text: string, offset: number): PathProbe {
     const indent = leadingSpaces(raw);
     const stripped = raw.slice(indent);
 
-    // Pop frames whose indent is >= this line's indent.
-    while (stack.length > 0 && stack[stack.length - 1].indent >= indent) {
-      stack.pop();
+    // Pop frames based on what this line is:
+    // - Map key: pop same-indent siblings (they've closed).
+    // - Sequence item: keep a same-indent key frame — it's the compact-notation
+    //   parent (e.g. `users:\n- item` where `-` sits at the same indent as `users:`).
+    const isSeqItem = stripped.startsWith("- ") || stripped === "-";
+    if (isSeqItem) {
+      while (stack.length > 0 && stack[stack.length - 1].indent > indent) {
+        stack.pop();
+      }
+    } else {
+      while (stack.length > 0 && stack[stack.length - 1].indent >= indent) {
+        stack.pop();
+      }
     }
 
-    if (stripped.startsWith("- ") || stripped === "-") {
+    if (isSeqItem) {
       // Sequence item. The frame above us is the parent map/seq.
       const parent = stack[stack.length - 1];
       if (parent && parent.key !== null) {
@@ -62,9 +72,11 @@ export function probeAt(text: string, offset: number): PathProbe {
         // time we see one of its items, then advance the index.
         parent.seqIndex = (parent.seqIndex < 0 ? 0 : parent.seqIndex + 1);
       } else {
-        // Top-level sequence at indent 0 — push a synthetic frame.
+        // Top-level or synthetic sequence frame at the same indent.
         if (!parent || parent.indent < indent) {
           stack.push({ indent, key: null, seqIndex: 0 });
+        } else if (parent.key === null) {
+          parent.seqIndex += 1;
         }
       }
 
