@@ -25,6 +25,7 @@ interface PluginSettings {
   showGutterIcons: boolean;
   showGhostText: boolean;
   showBreadcrumbs: boolean;
+  hangingIndent: boolean;
   customSnippets: SnippetTemplate[];
 }
 
@@ -33,6 +34,7 @@ const DEFAULT_SETTINGS: PluginSettings = {
   showGutterIcons: true,
   showGhostText: true,
   showBreadcrumbs: true,
+  hangingIndent: true,
   customSnippets: [],
 };
 
@@ -216,6 +218,21 @@ class YamlEditorSettingTab extends PluginSettingTab {
         toggle.setValue(this.plugin.settings.showBreadcrumbs).onChange(async (val) => {
           this.plugin.settings.showBreadcrumbs = val;
           await this.plugin.saveSettings();
+        }),
+      );
+
+    new Setting(containerEl)
+      .setName("Align wrapped lines")
+      .setDesc(
+        "Indent soft-wrapped YAML lines to line up with the start of their own " +
+          "content instead of the left margin",
+      )
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.hangingIndent).onChange(async (val) => {
+          this.plugin.settings.hangingIndent = val;
+          await this.plugin.saveSettings();
+          // Nudge open editors to rebuild their decorations with the new value.
+          this.app.workspace.updateOptions();
         }),
       );
 

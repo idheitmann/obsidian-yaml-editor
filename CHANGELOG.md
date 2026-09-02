@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Hanging indent for wrapped YAML lines.** Soft-wrapped lines now continue
+  under the start of their own content instead of the left margin, so a long
+  wrapped value no longer looks like a new top-level key. Leading spaces and
+  `- ` sequence markers count as structural, so a wrapped list item aligns
+  under its own text. Scoped to YAML regions; toggleable via the "Align wrapped
+  lines" setting.
+
 
 
 ## [1.0.4] — 2026-07-03

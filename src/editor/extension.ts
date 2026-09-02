@@ -8,6 +8,7 @@ import { yamlKeymap } from "./keymap";
 import { yamlCompletion } from "./completions";
 import { yamlAffordances } from "./affordances";
 import { yamlDecorations } from "./decorations";
+import { yamlHangingIndent } from "./hangingindent";
 import { probeAt, renderBreadcrumb } from "../yaml/path";
 import { yamlFoldRange } from "../yaml/fold";
 import { yamlRegions } from "./mode";
@@ -34,6 +35,7 @@ export function yamlEditorExtension(plugin: YamlEditorPlugin): Extension[] {
     // ── Visual affordances ─────────────────────────────────────────────
     yamlAffordances(plugin),
     yamlDecorations(),
+    yamlHangingIndent(plugin),
 
     // ── Keybindings ────────────────────────────────────────────────────
     yamlKeymap(plugin.app),

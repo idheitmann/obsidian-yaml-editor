@@ -35,6 +35,16 @@
   padding-bottom: 1px;
 }
 
+/* ── Hanging indent for wrapped lines ──────────────────────────────────── */
+
+/* `--yaml-hang` is set per line by src/editor/hangingindent.ts. The margin
+   shifts the whole line box right; the negative text-indent pulls the first
+   visual line back to where it started, so only wrapped remainders move. */
+.yaml-hang-line {
+  margin-left: var(--yaml-hang);
+  text-indent: calc(-1 * var(--yaml-hang));
+}
+
 /* ── Standalone .yaml / .yml file view ─────────────────────────────────── */
 
 .yaml-editor-view {
