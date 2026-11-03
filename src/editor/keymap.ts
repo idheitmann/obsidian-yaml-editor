@@ -6,7 +6,8 @@ import { indentUnit } from "@codemirror/language";
 import type { EditorState } from "@codemirror/state";
 import { computeEnter } from "./indent";
 import { yamlRegions } from "./mode";
-import { cmInsertDate, cmAddAnchor, cmReferenceAnchor } from "./commands";
+import { cmInsertDate, cmAddAnchor, cmReferenceAnchor, cmStructural } from "./commands";
+import { indentSubtree, moveNode } from "../yaml/structure";
 
 const INDENT = "  "; // two spaces
 
@@ -19,13 +20,22 @@ function inYamlRegion(state: EditorState, pos: number): boolean {
 }
 
 /**
- * Tab / Shift+Tab: indent only within YAML regions, in 2-space steps.
+ * Tab / Shift+Tab: indent only within YAML regions, in 2-space steps. On a key
+ * or list-item line the whole subtree moves with it; elsewhere (block-scalar
+ * text, comments, blank lines) just the line.
  */
 function yamlTab(view: EditorView, forward: boolean): boolean {
   const { state } = view;
   const sel = state.selection.main;
 
   if (!inYamlRegion(state, sel.head)) return false;
+
+  const region = yamlRegions(state).find((r) => sel.head >= r.from && sel.head <= r.to)!;
+  const subtree = indentSubtree(region.text, sel.head - region.from, forward ? "in" : "out", INDENT.length);
+  if (subtree) {
+    if ("error" in subtree) return false; // can't outdent further
+    return cmStructural(view, () => subtree);
+  }
 
   const line = state.doc.lineAt(sel.head);
   const lineStart = line.from;
@@ -96,6 +106,16 @@ export function yamlKeymap(app: App): import("@codemirror/state").Extension {
         shift(view: EditorView) {
           return yamlTab(view, false);
         },
+      },
+      // Move a key or list item past its sibling, subtree and all. Off a
+      // key/item line (or outside YAML) this falls through to the default.
+      {
+        key: "Alt-ArrowUp",
+        run: (view) => cmStructural(view, (t, o) => moveNode(t, o, "up")),
+      },
+      {
+        key: "Alt-ArrowDown",
+        run: (view) => cmStructural(view, (t, o) => moveNode(t, o, "down")),
       },
       {
         key: "Mod-Shift-d",

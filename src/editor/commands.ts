@@ -4,6 +4,7 @@ import type { EditorState } from "@codemirror/state";
 import { yamlRegions } from "./mode";
 import { findValueSpan, toggleQuote } from "../yaml/quote";
 import { locateKeyPath } from "../yaml/path";
+import type { StructuralResult } from "../yaml/structure";
 import { promptForString } from "../ui/prompt";
 
 /**
@@ -17,6 +18,51 @@ import { promptForString } from "../ui/prompt";
 /** Is `pos` inside any YAML region of this state? */
 export function cursorInYaml(state: EditorState, pos: number): boolean {
   return yamlRegions(state).some((r) => pos >= r.from && pos <= r.to);
+}
+
+/** A pure structural operation on a region's text at a region-local offset. */
+export type StructuralOp = (text: string, offset: number) => StructuralResult | null;
+
+/**
+ * Run a structural operation on the region under the cursor and apply its
+ * edits. Shows the operation's reason in a notice when it refuses. Returns
+ * false only when there's nothing to act on (outside YAML, or the op returned
+ * null), so keymaps can fall through to default behavior.
+ */
+export function cmStructural(view: EditorView, op: StructuralOp): boolean {
+  const head = view.state.selection.main.head;
+  const region = yamlRegions(view.state).find((r) => head >= r.from && head <= r.to);
+  if (!region) return false;
+  const result = op(region.text, head - region.from);
+  if (!result) return false;
+  if ("error" in result) {
+    new Notice(result.error);
+    return true;
+  }
+  const changes = view.state.changes(
+    result.edits.map((e) => ({ from: region.from + e.from, to: region.from + e.to, insert: e.insert })),
+  );
+  view.dispatch({
+    changes,
+    selection:
+      result.cursor !== undefined
+        ? { anchor: region.from + result.cursor }
+        : view.state.selection.map(changes, 1),
+    scrollIntoView: true,
+  });
+  return true;
+}
+
+/**
+ * Would `op` succeed at the cursor? Used to show only the context-menu
+ * entries that apply.
+ */
+export function structuralApplies(view: EditorView, op: StructuralOp): boolean {
+  const head = view.state.selection.main.head;
+  const region = yamlRegions(view.state).find((r) => head >= r.from && head <= r.to);
+  if (!region) return false;
+  const result = op(region.text, head - region.from);
+  return result !== null && !("error" in result);
 }
 
 export function cmToggleQuote(view: EditorView): boolean {

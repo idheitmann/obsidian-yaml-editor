@@ -6,6 +6,7 @@ import { codeFolding, foldGutter, foldKeymap } from "@codemirror/language";
 import { yamlEditorExtension } from "../editor/extension";
 import { wholeDocYaml } from "../editor/mode";
 import { obsidianTheme } from "../editor/theme";
+import { yamlContextMenu } from "./menu";
 import type YamlEditorPlugin from "../main";
 
 export const VIEW_TYPE_YAML = "yaml-editor-view";
@@ -89,6 +90,7 @@ export class YamlFileView extends TextFileView {
           // Our YAML behavior first, so its Tab/Enter keymap takes precedence
           // over the generic editing fallback below.
           yamlEditorExtension(this.plugin),
+          yamlContextMenu(this.plugin),
           keymap.of([...defaultKeymap, ...historyKeymap, ...foldKeymap]),
           lineNumbers(),
           // Folding state + gutter. The fold *ranges* come from the foldService

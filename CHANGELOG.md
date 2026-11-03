@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Structural editing.** Every command below changes only the lines it
+  restructures; comments, blank lines and formatting elsewhere are untouched.
+  A node's subtree and the comments directly above it move with it.
+  - **Move node up/down** (`Alt+↑` / `Alt+↓`, or the "Move node" commands):
+    swaps a key or list item with its sibling instead of the neighboring line.
+  - **Tab / Shift+Tab on a key or list item** indents or outdents its whole
+    subtree. Elsewhere (block-scalar text, comments) it still moves one line.
+  - **Sort keys at this level**: case-insensitive, comments kept with their
+    keys. Refuses if the parsed data would change.
+  - **Shape conversions**: value → block list, list → map (plain values become
+    keys; a list holding one map is unwrapped), map → list of maps.
+  - **Right-click menu** in YAML, in notes and in standalone `.yaml` files:
+    insert sibling or child key (opens the palette on a new line at the right
+    indent), the conversions, sort keys, quote/unquote, extract anchor, link to
+    alias. Only the entries that apply at the cursor are shown.
+
 ## [1.0.5] — 2026-11-02
 
 ### Added

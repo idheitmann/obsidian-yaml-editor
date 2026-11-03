@@ -14,7 +14,11 @@ import {
   cmGotoKey,
   cmAddAnchor,
   cmReferenceAnchor,
+  cmStructural,
+  type StructuralOp,
 } from "./editor/commands";
+import { listToMap, mapToListOfMaps, moveNode, scalarToList, sortKeys } from "./yaml/structure";
+import { addYamlMenuItems } from "./ui/menu";
 import { promptForString } from "./ui/prompt";
 import type { SnippetTemplate } from "./types";
 
@@ -98,6 +102,23 @@ export default class YamlEditorPlugin extends Plugin {
       });
     });
 
+    this.addStructuralCommand("yaml-move-node-up", "YAML: Move node up", (t, o) => moveNode(t, o, "up"));
+    this.addStructuralCommand("yaml-move-node-down", "YAML: Move node down", (t, o) => moveNode(t, o, "down"));
+    this.addStructuralCommand("yaml-sort-keys", "YAML: Sort keys at this level", sortKeys);
+    this.addStructuralCommand("yaml-scalar-to-list", "YAML: Convert value to list", scalarToList);
+    this.addStructuralCommand("yaml-list-to-map", "YAML: Convert list to map", listToMap);
+    this.addStructuralCommand("yaml-map-to-list", "YAML: Convert map to list of maps", mapToListOfMaps);
+
+    // Right-click menu in Markdown notes. (The standalone .yaml view has no
+    // Obsidian editor menu; it adds its own — see yamlContextMenu.)
+    this.registerEvent(
+      this.app.workspace.on("editor-menu", (menu, editor) => {
+        const view = (editor as unknown as { cm?: EditorView }).cm;
+        if (!view || !cursorInYaml(view.state, view.state.selection.main.head)) return;
+        addYamlMenuItems(menu, view, this);
+      }),
+    );
+
     this.addCommand({
       id: "yaml-reload-schemas",
       name: "YAML: Reload schemas",
@@ -158,6 +179,13 @@ export default class YamlEditorPlugin extends Plugin {
         if (!checking) run(view);
         return true;
       },
+    });
+  }
+
+  /** A YAML command backed by a pure structural operation (see src/yaml/structure.ts). */
+  private addStructuralCommand(id: string, name: string, op: StructuralOp): void {
+    this.addYamlCommand(id, name, (view) => {
+      if (!cmStructural(view, op)) new Notice("Put the cursor on a key or list item.");
     });
   }
 }

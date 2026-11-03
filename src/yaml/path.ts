@@ -217,7 +217,7 @@ function isBlankOrComment(line: string): boolean {
  * (with content after stripping indent / dash). Returns the unquoted key
  * and the column index at which `:` appears, or null.
  */
-function matchKey(s: string): { key: string; keyEnd: number } | null {
+export function matchKey(s: string): { key: string; keyEnd: number } | null {
   // Quoted key.
   const q = s.match(/^(["'])((?:\\.|(?!\1).)*)\1\s*:/);
   if (q) return { key: q[2], keyEnd: q[0].length - 1 };
