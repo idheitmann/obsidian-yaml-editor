@@ -1,31 +1,39 @@
-import { Document, parseDocument, isMap, isSeq, isScalar, isAlias } from "yaml";
+import { Document, parseAllDocuments, isMap, isSeq, isScalar, isAlias } from "yaml";
 import type { YamlPath, YamlValueKind } from "../types";
 
 /**
- * Thin wrapper around `eemeli/yaml`. We keep the parsed `Document` so that
+ * Thin wrapper around `eemeli/yaml`. We keep the parsed `Document`s so that
  * downstream consumers can walk the AST without reparsing.
+ *
+ * A region may hold several `---`-separated documents (e.g. a Kubernetes
+ * manifest), which is valid YAML, so we parse it as a stream. `docs` is empty
+ * for an empty region. Error positions are offsets into the whole region text.
  *
  * We always parse with `keepSourceTokens: true` so we can map AST nodes
  * back to byte ranges in the source. That's how the path lookup at a
  * cursor offset works without re-tokenizing.
  */
 export interface ParsedRegion {
-  doc: Document.Parsed;
+  docs: Document.Parsed[];
   text: string;
   errors: { from: number; to: number; message: string }[];
 }
 
 export function parseRegion(text: string): ParsedRegion {
-  const doc = parseDocument(text, {
-    keepSourceTokens: true,
-    prettyErrors: false,
-    strict: false,
-  });
-  const errors = doc.errors.map((e) => {
-    const [from = 0, to = from] = e.pos ?? [];
-    return { from, to, message: e.message };
-  });
-  return { doc, text, errors };
+  const docs = Array.from(
+    parseAllDocuments(text, {
+      keepSourceTokens: true,
+      prettyErrors: false,
+      strict: false,
+    }),
+  );
+  const errors = docs.flatMap((doc) =>
+    doc.errors.map((e) => {
+      const [from = 0, to = from] = e.pos ?? [];
+      return { from, to, message: e.message };
+    }),
+  );
+  return { docs, text, errors };
 }
 
 export function classifyValue(node: unknown): YamlValueKind {

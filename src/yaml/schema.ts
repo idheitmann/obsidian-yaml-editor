@@ -106,18 +106,20 @@ export class SchemaTracker {
     for (const regionText of regionTexts) {
       const parsed = parseRegion(regionText);
       if (parsed.errors.length > 0) continue;
-      const root = parsed.doc.contents;
-      if (!root) continue;
-      walk(root, [], (path, value) => {
-        const key = pathKey(path);
-        const kind = classifyValue(value);
-        contributed.push({ key, kind });
-        const example =
-          isScalar(value) && typeof value.value === "string"
-            ? value.value
-            : null;
-        this.bump(key, kind, example);
-      });
+      for (const doc of parsed.docs) {
+        const root = doc.contents;
+        if (!root) continue;
+        walk(root, [], (path, value) => {
+          const key = pathKey(path);
+          const kind = classifyValue(value);
+          contributed.push({ key, kind });
+          const example =
+            isScalar(value) && typeof value.value === "string"
+              ? value.value
+              : null;
+          this.bump(key, kind, example);
+        });
+      }
     }
     this.perFile.set(file.path, contributed);
   }

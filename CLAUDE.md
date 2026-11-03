@@ -13,7 +13,7 @@ An Obsidian community plugin that turns YAML editing (frontmatter `---` blocks a
 - `npm run typecheck` — type-check only.
 - `npm test` — run the Vitest suite in `tests/` (Obsidian APIs are stubbed in `tests/stubs/`).
 
-There is no linter configured. A fresh `npm ci` currently fails on a peer-dependency conflict because `obsidian` is pinned to `latest`; until that's fixed, use `npm ci --legacy-peer-deps`. The build entry point is `src/main.ts` → bundled to `main.js` (gitignored; it's the loadable artifact Obsidian reads alongside `manifest.json` and `styles.css`).
+There is no linter configured. CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs `npm ci`, `npm test` and `npm run build` on every push and PR. `obsidian` and `@codemirror/state`/`view` are pinned to exact versions because `obsidian` declares exact CodeMirror peers; bump them together or `npm ci` fails. The build entry point is `src/main.ts` → bundled to `main.js` (gitignored; it's the loadable artifact Obsidian reads alongside `manifest.json` and `styles.css`).
 
 To test in a real vault, symlink/copy `main.js`, `manifest.json`, `styles.css` into `<vault>/.obsidian/plugins/yaml-editor/`.
 

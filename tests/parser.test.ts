@@ -64,4 +64,21 @@ describe("parseRegion", () => {
     expect(errors[0]).toHaveProperty("message");
     expect(typeof errors[0]!.from).toBe("number");
   });
+
+  it("accepts several ---separated documents without error", () => {
+    const parsed = parseRegion("kind: A\n---\nkind: B\n---\nkind: C\n");
+    expect(parsed.errors).toHaveLength(0);
+    expect(parsed.docs.map((d) => d.get("kind"))).toEqual(["A", "B", "C"]);
+  });
+
+  it("reports an error in a later document at its offset in the region", () => {
+    const text = "a: 1\n---\nb: [\n";
+    const { errors } = parseRegion(text);
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0]!.from).toBeGreaterThanOrEqual(text.indexOf("b:"));
+  });
+
+  it("returns no documents for an empty region", () => {
+    expect(parseRegion("").docs).toHaveLength(0);
+  });
 });

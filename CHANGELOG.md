@@ -16,6 +16,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   under its own text. Scoped to YAML regions; toggleable via the "Align wrapped
   lines" setting.
 
+### Fixed
+
+- **"Toggle quotes" quotes values starting with `[` again.** A regression in
+  1.0.1 dropped `[` from the leading-indicator check, so such a value was left
+  bare and YAML read it as an unclosed flow list.
+- **Multi-document files are no longer flagged as errors.** A standalone file
+  with several `---`-separated documents (e.g. Kubernetes manifests) is valid
+  YAML; it no longer reports "Source contains multiple documents," and every
+  document now contributes to the inferred schema.
+- **Fresh installs work.** `obsidian` was pinned to `latest`, which drifted into
+  a peer conflict with the CodeMirror packages and broke `npm ci`. It is now
+  pinned to 1.12.3, with `@codemirror/state` and `@codemirror/view` pinned to
+  the versions it expects.
+
+### Changed
+
+- Tests, typecheck and build run in CI on every push and pull request.
 
 
 ## [1.0.4] — 2026-07-03
