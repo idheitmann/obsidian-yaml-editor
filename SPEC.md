@@ -19,6 +19,7 @@ It works in two places:
 3. **Keystroke-first, mouse-available.** Every affordance has a keyboard equivalent. The mouse is for discoverability; the keyboard is for speed.
 4. **Honor the user's text.** Don't reformat. Don't reorder keys. Don't strip comments. Round-trip preservation is non-negotiable; a save should diff cleanly against the user's hand-written original wherever possible.
 5. **Schema is inferred, then refined.** Start from what's in the document and what other notes in the vault use. Allow explicit schema declarations to sharpen completions, but never require them.
+6. **Agents propose; people apply.** Any change that doesn't come from the user's own keystrokes or commands arrives as a proposal the user reviews. Round-trip preservation applies to those changes too. (See [ROADMAP.md](ROADMAP.md).)
 
 ## Core Features
 
@@ -130,4 +131,4 @@ The `SchemaTracker` is the only piece with vault scope; everything else is per-e
 
 - How to surface schema *violations* without being annoying. (Today: gutter mark + hover.)
 - Whether to auto-add the `---` fences when invoking "Insert frontmatter" inside a note that doesn't have any.
-- Whether the Schema Palette should learn from acceptance/rejection over time.
+- Whether the Schema Palette should learn from acceptance/rejection over time. (Proposed answer in [ROADMAP.md](ROADMAP.md): yes, from a decision log the review queue keeps, once there's data to learn from.)

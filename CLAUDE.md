@@ -11,8 +11,9 @@ An Obsidian community plugin that turns YAML editing (frontmatter `---` blocks a
 - `npm run dev` — esbuild watch mode; rebuilds `main.js` on change. No HMR — reload the plugin in Obsidian to see changes.
 - `npm run build` — typecheck (`tsc -noEmit`) then production esbuild bundle.
 - `npm run typecheck` — type-check only.
+- `npm test` — run the Vitest suite in `tests/` (Obsidian APIs are stubbed in `tests/stubs/`).
 
-There is **no test runner and no linter configured**. `tsc --strict` is the only automated check. The build entry point is `src/main.ts` → bundled to `main.js` (gitignored; it's the loadable artifact Obsidian reads alongside `manifest.json` and `styles.css`).
+There is no linter configured. A fresh `npm ci` currently fails on a peer-dependency conflict because `obsidian` is pinned to `latest`; until that's fixed, use `npm ci --legacy-peer-deps`. The build entry point is `src/main.ts` → bundled to `main.js` (gitignored; it's the loadable artifact Obsidian reads alongside `manifest.json` and `styles.css`).
 
 To test in a real vault, symlink/copy `main.js`, `manifest.json`, `styles.css` into `<vault>/.obsidian/plugins/yaml-editor/`.
 
@@ -56,4 +57,8 @@ Completions and the palette draw from both: the inferred `SchemaTracker` (above)
 
 ## Manifest / release
 
-`manifest.json` (`id`, `version`, `minAppVersion`) is the source of truth Obsidian reads. A release requires `main.js`, `manifest.json`, `styles.css`, and a `versions.json` mapping plugin version → minimum app version (not yet present in the repo).
+`manifest.json` (`id`, `version`, `minAppVersion`) is the source of truth Obsidian reads. A release requires `main.js`, `manifest.json`, `styles.css`, and `versions.json` mapping plugin version → minimum app version.
+
+## Roadmap
+
+Planned work and its constraints live in [ROADMAP.md](ROADMAP.md). Read its "Rules for every step" before starting roadmap work.
