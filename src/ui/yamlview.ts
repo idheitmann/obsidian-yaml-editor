@@ -90,8 +90,9 @@ export class YamlFileView extends TextFileView {
     this.mode = mode;
     const rendered = mode === "rendered";
     if (rendered) this.renderNow();
-    if (this.editor) this.editor.dom.style.display = rendered ? "none" : "";
-    if (this.renderedEl) this.renderedEl.style.display = rendered ? "" : "none";
+    // A class on the pane, not inline styles: CodeMirror's base theme sets
+    // `display: flex !important` on .cm-editor, which beats an inline display:none.
+    this.contentEl.toggleClass("is-yaml-rendered", rendered);
     if (this.toggleEl) {
       setIcon(this.toggleEl, rendered ? "pencil" : "book-open");
       this.toggleEl.setAttribute("aria-label", rendered ? "Edit YAML" : "Show rendered view");
@@ -124,7 +125,6 @@ export class YamlFileView extends TextFileView {
   private ensureRenderedEl(): HTMLElement {
     if (this.renderedEl) return this.renderedEl;
     const el = this.contentEl.createDiv({ cls: "yaml-rendered-view" });
-    el.style.display = "none";
     // Vault paths open the note; web links go to the browser instead of navigating the app window.
     this.registerDomEvent(el, "click", (evt) => {
       const a = (evt.target as HTMLElement | null)?.closest("a");

@@ -69,9 +69,3 @@ Unknown or malformed hints are ignored, never fatal.
 - Put the narrative in the data (`overview:` fields), not in the renderer. The page should never say something the record doesn't.
 - Give legend entries a `label:` when the key doesn't humanize well (`kj_redline` → "Kj redline").
 - Use `snake_case` keys for anything you want to cross-reference from prose.
-
-## Writing files for it
-
-- Put the narrative in the data (`overview:` fields), not in the renderer. The page should never say something the record doesn't.
-- Give legend entries a `label:` when the key doesn't humanize well (`kj_redline` → "Kj redline").
-- Use `snake_case` keys for anything you want to cross-reference from prose.

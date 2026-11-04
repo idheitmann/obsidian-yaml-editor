@@ -177,6 +177,16 @@
 /* Colours and table styling come inline from the renderer's "theme" palette
    (src/render/styles.ts); this only frames the pane. */
 
+/* Which of the two is visible is set by .is-yaml-rendered on the pane.
+   !important is needed to beat CodeMirror's `display: flex !important`. */
+.yaml-editor-view.is-yaml-rendered .cm-editor {
+  display: none !important;
+}
+
+.yaml-editor-view:not(.is-yaml-rendered) .yaml-rendered-view {
+  display: none;
+}
+
 .yaml-editor-view .yaml-rendered-view {
   height: 100%;
   overflow-y: auto;
