@@ -160,3 +160,40 @@ describe("documents", () => {
     expect(html).not.toContain("<script");
   });
 });
+
+describe("document mode", () => {
+  const yaml = [
+    "_view:",
+    "  title: Report",
+    "  lists: {people: {as: cards, title: name, headline: [kind]}}",
+    "  matrix: [{rows: people, cols: kind}]",
+    "kinds:",
+    "  w2: {label: Employee}",
+    "  ic_firm: {label: Contractor}",
+    "people:",
+    "  - name: Ann",
+    "    kind: w2",
+    "    note: falls back to ic_firm if needed",
+    "    source: folder/File.md",
+  ].join("\n");
+
+  it("uses only paste-safe markup: no classes, anchors, grid or scripts", async () => {
+    const { renderDocPage } = await import("../src/render/doc");
+    const { html } = renderDocPage(yaml);
+    expect(html).not.toMatch(/class="/);
+    expect(html).not.toMatch(/href="#/);
+    expect(html).not.toMatch(/display:\s*(grid|flex|contents)/);
+    expect(html).not.toMatch(/var\(--/);
+    expect(html).not.toContain("<script");
+  });
+
+  it("renders refs as plain labels, paths as text, and short fields as a label table", async () => {
+    const { renderDocYaml } = await import("../src/render/doc");
+    const { html } = renderDocYaml(yaml);
+    expect(html).toContain("<strong>Kind:</strong> Employee");
+    expect(html).toContain("falls back to Contractor if needed");
+    expect(html).toContain('File.md <span style="color:#777777">(folder)</span>');
+    expect(html).toMatch(/<table width="100%"[^>]*><colgroup>/);
+    expect(html).toContain("●");
+  });
+});

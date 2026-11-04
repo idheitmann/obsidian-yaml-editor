@@ -31,7 +31,7 @@ export interface RenderResult {
 
 type Obj = Record<string, unknown>;
 
-const TITLE_KEYS = ["name", "title", "label", "id", "key"];
+export const TITLE_KEYS = ["name", "title", "label", "id", "key"];
 const SUMMARY_KEYS = ["what", "summary", "description", "definition", "law"];
 const LONG_TEXT = 140;
 const BADGE_TEXT = 48;
@@ -61,11 +61,11 @@ export function leadingComment(text: string): string {
   return out.join("\n");
 }
 
-function isScalar(v: unknown): boolean {
+export function isScalar(v: unknown): boolean {
   return v === null || v === undefined || ["string", "number", "boolean"].includes(typeof v) || v instanceof Date;
 }
 
-function titleOf(item: unknown, key?: string): string | undefined {
+export function titleOf(item: unknown, key?: string): string | undefined {
   if (!isObj(item)) return typeof item === "string" ? item : undefined;
   for (const k of key ? [key] : TITLE_KEYS) {
     const v = item[k];

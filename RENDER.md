@@ -58,3 +58,15 @@ Unknown or malformed hints are ignored, never fatal.
 - Put the narrative in the data (`overview:` fields), not in the renderer. The page should never say something the record doesn't.
 - Give legend entries a `label:` when the key doesn't humanize well (`kj_redline` → "Kj redline").
 - Use `snake_case` keys for anything you want to cross-reference from prose.
+
+## Word and Google Docs
+
+`npm run render -- <file.yaml> --doc` also writes `<file>.doc.html` in **document mode**: the same content and the same `_view` hints, built only from markup that survives a paste into Word or Google Docs. That means headings, paragraphs, bullet lists, and tables with inline styles. There are no classes, grid or flex layout, CSS variables, scripts or internal links. Cards become headings, badges become a bold "Label: value" line, label/value rows become two-column tables, and cross-references become their plain labels.
+
+Three ways to use it:
+
+- **Paste:** open the `.doc.html` in a browser, select all, and paste into Word or a Google Doc.
+- **Google Docs without pasting:** upload the `.doc.html` to Drive and choose *Open with → Google Docs*.
+- **Word file:** `--docx` writes `<file>.docx` too. It converts with LibreOffice (`soffice`), which keeps table borders and bold labels, and falls back to pandoc if LibreOffice isn't installed.
+
+From code: `renderDocYaml(text)` and `renderDocPage(text)` in `src/render/doc.ts`.

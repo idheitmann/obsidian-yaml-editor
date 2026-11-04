@@ -23,6 +23,8 @@ export type RefIndex = Map<string, RefEntry>;
 export interface InlineContext {
   link?: LinkResolver;
   refs: RefIndex;
+  /** Document mode: no internal anchors or classes, only inline styles. */
+  plain?: boolean;
 }
 
 export function escapeHtml(s: string): string {
@@ -54,6 +56,11 @@ export function asPath(value: string): { path: string; note?: string } | null {
 }
 
 export function renderPath(path: string, note: string | undefined, ctx: InlineContext): string {
+  if (ctx.plain) {
+    const i = path.lastIndexOf("/");
+    const dir = i >= 0 ? ` <span style="color:#777777">(${escapeHtml(path.slice(0, i))})</span>` : "";
+    return `${escapeHtml(i >= 0 ? path.slice(i + 1) : path)}${dir}${note ? ` ${renderInline(note, ctx)}` : ""}`;
+  }
   const slash = path.lastIndexOf("/");
   const dir = slash >= 0 ? path.slice(0, slash + 1) : "";
   const base = slash >= 0 ? path.slice(slash + 1) : path;
@@ -95,12 +102,14 @@ export function renderInline(text: string, ctx: InlineContext): string {
     out += escapeHtml(text.slice(last, m.index));
     last = m.index + m[0].length;
     if (m[1] !== undefined) {
-      out += `<code>${escapeHtml(m[1])}</code>`;
+      out += ctx.plain ? `<span style="font-family:Consolas,monospace">${escapeHtml(m[1])}</span>` : `<code>${escapeHtml(m[1])}</code>`;
     } else if (m[2] !== undefined) {
       const target = m[2].trim();
       const label = (m[3] ?? target).trim();
-      const href = ctx.link?.(target, "wikilink") ?? null;
-      out += href
+      const href = ctx.plain ? null : ctx.link?.(target, "wikilink") ?? null;
+      out += ctx.plain
+        ? escapeHtml(label)
+        : href
         ? `<a class="yr-wikilink" href="${escapeHtml(href)}">${escapeHtml(label)}</a>`
         : `<span class="yr-wikilink">${escapeHtml(label)}</span>`;
     } else if (m[4] !== undefined && m[5] !== undefined) {
@@ -114,7 +123,7 @@ export function renderInline(text: string, ctx: InlineContext): string {
       out += `<a href="${escapeHtml(href)}" rel="noopener">${escapeHtml(m[8])}</a>`;
     } else if (m[9] !== undefined) {
       const entry = ctx.refs.get(m[9]);
-      out += entry ? renderRef(m[9], entry) : escapeHtml(m[9]);
+      out += entry ? (ctx.plain ? escapeHtml(entry.label) : renderRef(m[9], entry)) : escapeHtml(m[9]);
     }
   }
   out += escapeHtml(text.slice(last));
