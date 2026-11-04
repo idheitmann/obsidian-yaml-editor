@@ -1,6 +1,6 @@
 # Roadmap
 
-**Status:** proposed 2026-11-02, revised 2026-11-04 after 1.1 landed on `main` with an unplanned rendered view. Nothing here is committed to until it's merged; reorder, cut or add freely.
+**Status:** proposed 2026-11-02, revised 2026-11-04 after 1.1 shipped with an unplanned rendered view. Nothing here is committed to until it's merged; reorder, cut or add freely.
 
 YAML Editor should be the editor anyone working with YAML in Obsidian reaches for: structure-aware, fast on real files, and never touching text it wasn't asked to touch. Since 1.1 it also reads YAML: a file can open as a report instead of as source.
 
@@ -16,7 +16,7 @@ YAML Editor should be the editor anyone working with YAML in Obsidian reaches fo
 | version | theme | state |
 |---|---|---|
 | 1.0.5 | Repair | released |
-| 1.1 | Structural editing and the rendered view | on `main`, unreleased |
+| 1.1 | Structural editing and the rendered view | released 2026-11-04 |
 | 1.2 | Navigation that holds up | next |
 | 1.3 | Schemas | planned |
 | later | Smaller gaps | |
@@ -25,7 +25,7 @@ YAML Editor should be the editor anyone working with YAML in Obsidian reaches fo
 
 Quoting fix, multi-document files no longer flagged as errors, pinned dependencies so `npm ci` works, CI on every push, hanging indent, and the community-directory listing.
 
-## 1.1: Structural editing and the rendered view (on `main`)
+## 1.1: Structural editing and the rendered view (released)
 
 Built as planned:
 
@@ -37,8 +37,6 @@ Added along the way:
 - **Logical outdent.** Shift+Tab on a node with later siblings moves it after its parent's block instead of capturing the siblings as children; outdents that wouldn't parse are refused.
 - **Rendered view.** A header toggle in standalone `.yaml` files switches to a read-only report laid out from the data's shape, in theme colours, with clickable vault paths. An optional `_view:` block steers it; files with one open rendered. See RENDER.md.
 - **Render to HTML file** writes a static, paste-safe page for Word or Google Docs; `npm run render` does the same from the terminal, with `--docx`.
-
-Before release: bump the version, update `versions.json`, and add the rendered view to SPEC.md, which describes only the editor.
 
 ## 1.2: Navigation that holds up
 
