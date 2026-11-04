@@ -1,4 +1,4 @@
-import { TextFileView, WorkspaceLeaf, sanitizeHTMLToDom, setIcon, type ViewStateResult } from "obsidian";
+import { TextFileView, WorkspaceLeaf, sanitizeHTMLToDom, setIcon, type TFile, type ViewStateResult } from "obsidian";
 import { EditorState } from "@codemirror/state";
 import { EditorView, keymap, drawSelection, highlightActiveLine, lineNumbers } from "@codemirror/view";
 import { defaultKeymap, historyKeymap } from "@codemirror/commands";
@@ -8,6 +8,8 @@ import { wholeDocYaml } from "../editor/mode";
 import { obsidianTheme } from "../editor/theme";
 import { yamlContextMenu } from "./menu";
 import { renderYaml } from "../render/render";
+import { foldCount, foldEffectsFor, foldedEntries } from "../editor/foldstate";
+import type { FoldEntry } from "../yaml/foldid";
 import { initialMode, type YamlViewMode } from "../render/viewmode";
 import type YamlEditorPlugin from "../main";
 
@@ -25,6 +27,11 @@ export const VIEW_TYPE_YAML = "yaml-editor-view";
  * Markdown's reading view. The editor stays mounted while hidden, so nothing
  * is lost on switching. Files with a top-level `_view:` block open rendered
  * (setting `renderReports`); a mode the user picked is kept in the pane state.
+ *
+ * Folds are remembered per file by node identity (src/yaml/foldid.ts), not
+ * line number: restored when the file opens, carried across external edits
+ * (which replace the document and would otherwise wipe them), and saved on
+ * fold changes, file switches and close.
  */
 export class YamlFileView extends TextFileView {
   private editor: EditorView | null = null;
@@ -34,6 +41,9 @@ export class YamlFileView extends TextFileView {
   /** Mode restored from the pane state, applied when the file loads. */
   private savedMode: unknown = undefined;
   private renderTimer: number | null = null;
+  private foldSaveTimer: number | null = null;
+  /** True while we apply saved folds ourselves, so that isn't mistaken for a user fold. */
+  private restoringFolds = false;
 
   constructor(leaf: WorkspaceLeaf, private plugin: YamlEditorPlugin) {
     super(leaf);
@@ -154,14 +164,18 @@ export class YamlFileView extends TextFileView {
     const fresh = !this.editor;
     if (!this.editor) {
       this.buildEditor(data);
-    } else if (clear || this.editor.state.doc.toString() !== data) {
-      // Replace the document when loading a (different) file into this leaf,
-      // or when the file changed on disk.
-      this.editor.dispatch({
-        changes: { from: 0, to: this.editor.state.doc.length, insert: data },
-      });
+    } else if (clear) {
+      // A different file is loading into this leaf.
+      this.replaceDoc(data);
+    } else if (this.editor.state.doc.toString() !== data) {
+      // The same file changed on disk. Replacing the document wipes its folds,
+      // so carry them across by node identity.
+      const live = this.currentFolds();
+      this.replaceDoc(data);
+      this.applyFolds(live);
     }
     if (fresh || clear) {
+      this.applyFolds(this.file ? this.plugin.getSavedFolds(this.file.path) : []);
       this.setMode(initialMode(data, this.plugin.settings.renderReports, this.savedMode));
       this.savedMode = undefined;
     } else {
@@ -171,16 +185,19 @@ export class YamlFileView extends TextFileView {
 
   clear(): void {
     this.data = "";
-    if (this.editor) {
-      this.editor.dispatch({
-        changes: { from: 0, to: this.editor.state.doc.length, insert: "" },
-      });
-    }
+    this.replaceDoc("");
   }
 
   // ── Lifecycle ───────────────────────────────────────────────────────────
 
+  override async onUnloadFile(file: TFile): Promise<void> {
+    // The editor still holds the outgoing file here: save its folds under its own path.
+    this.saveFolds(file.path);
+    await super.onUnloadFile(file);
+  }
+
   override async onClose(): Promise<void> {
+    this.saveFolds();
     if (this.renderTimer !== null) window.clearTimeout(this.renderTimer);
     this.editor?.destroy();
     this.editor = null;
@@ -216,9 +233,59 @@ export class YamlFileView extends TextFileView {
               this.requestSave();
               this.scheduleRender();
             }
+            if (!this.restoringFolds && foldCount(u.startState) !== foldCount(u.state)) this.scheduleFoldSave();
           }),
         ],
       }),
     });
+  }
+
+  // ── Remembered folds ────────────────────────────────────────────────────
+
+  /**
+   * Replace the whole document. This wipes its folds, which is not a user
+   * unfolding: without the guard, a save scheduled here could write an empty
+   * list over the next file's saved folds while it loads.
+   */
+  private replaceDoc(data: string): void {
+    if (!this.editor) return;
+    this.restoringFolds = true;
+    try {
+      this.editor.dispatch({ changes: { from: 0, to: this.editor.state.doc.length, insert: data } });
+    } finally {
+      this.restoringFolds = false;
+    }
+  }
+
+  /** Identities of the currently folded nodes. */
+  private currentFolds(): FoldEntry[] {
+    return this.editor ? foldedEntries(this.editor.state) : [];
+  }
+
+  private applyFolds(entries: FoldEntry[]): void {
+    if (!this.editor) return;
+    const effects = foldEffectsFor(this.editor.state, entries);
+    if (!effects.length) return;
+    this.restoringFolds = true;
+    try {
+      this.editor.dispatch({ effects });
+    } finally {
+      this.restoringFolds = false;
+    }
+  }
+
+  private scheduleFoldSave(): void {
+    if (this.foldSaveTimer !== null) window.clearTimeout(this.foldSaveTimer);
+    this.foldSaveTimer = window.setTimeout(() => this.saveFolds(), 500);
+  }
+
+  /** Save the current folds under `path` (default: the open file). */
+  private saveFolds(path?: string): void {
+    if (this.foldSaveTimer !== null) {
+      window.clearTimeout(this.foldSaveTimer);
+      this.foldSaveTimer = null;
+    }
+    const target = path ?? this.file?.path;
+    if (this.editor && target) this.plugin.setSavedFolds(target, this.currentFolds());
   }
 }

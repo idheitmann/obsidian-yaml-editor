@@ -8,6 +8,7 @@ import { SchemaPaletteModal } from "./ui/palette";
 import { YamlFileView, VIEW_TYPE_YAML } from "./ui/yamlview";
 import { renderPage } from "./render/render";
 import { htmlPathFor } from "./render/viewmode";
+import type { FoldEntry } from "./yaml/foldid";
 import {
   cursorInYaml,
   cmToggleQuote,
@@ -35,6 +36,8 @@ interface PluginSettings {
   /** Open .yaml files that have a top-level `_view:` block in the rendered view. */
   renderReports: boolean;
   customSnippets: SnippetTemplate[];
+  /** Folded nodes per standalone .yaml/.yml file path, by node identity (src/yaml/foldid.ts). */
+  savedFolds: Record<string, FoldEntry[]>;
 }
 
 const DEFAULT_SETTINGS: PluginSettings = {
@@ -45,6 +48,7 @@ const DEFAULT_SETTINGS: PluginSettings = {
   hangingIndent: true,
   renderReports: true,
   customSnippets: [],
+  savedFolds: {},
 };
 
 // ── Plugin ────────────────────────────────────────────────────────────────────
@@ -79,6 +83,23 @@ export default class YamlEditorPlugin extends Plugin {
       // Another plugin already owns these extensions; leave them be.
       console.warn("[yaml-editor] could not register .yaml/.yml extensions", e);
     }
+
+    // Keep saved folds with their files: follow renames, drop deleted files.
+    this.registerEvent(
+      this.app.vault.on("rename", (f, oldPath) => {
+        if (!(f instanceof TFile) || !(oldPath in this.settings.savedFolds)) return;
+        this.settings.savedFolds[f.path] = this.settings.savedFolds[oldPath];
+        delete this.settings.savedFolds[oldPath];
+        void this.saveSettings();
+      }),
+    );
+    this.registerEvent(
+      this.app.vault.on("delete", (f) => {
+        if (!(f instanceof TFile) || !(f.path in this.settings.savedFolds)) return;
+        delete this.settings.savedFolds[f.path];
+        void this.saveSettings();
+      }),
+    );
 
     // ── Commands ────────────────────────────────────────────────────────
 
@@ -171,13 +192,29 @@ export default class YamlEditorPlugin extends Plugin {
     try {
       const data = await super.loadData() as Partial<PluginSettings> | null;
       this.settings = { ...DEFAULT_SETTINGS, ...data };
+      this.settings.savedFolds = cleanSavedFolds(data?.savedFolds);
     } catch {
-      this.settings = { ...DEFAULT_SETTINGS };
+      this.settings = { ...DEFAULT_SETTINGS, savedFolds: {} };
     }
   }
 
   async saveSettings(): Promise<void> {
     await super.saveData(this.settings);
+  }
+
+  // ── Remembered folds ───────────────────────────────────────────────────────
+
+  getSavedFolds(path: string): FoldEntry[] {
+    return this.settings.savedFolds[path] ?? [];
+  }
+
+  /** Save a file's folds; an empty list removes the file's entry. Writes only on change. */
+  setSavedFolds(path: string, entries: FoldEntry[]): void {
+    const prev = this.settings.savedFolds[path];
+    if (JSON.stringify(prev ?? []) === JSON.stringify(entries)) return;
+    if (entries.length) this.settings.savedFolds[path] = entries;
+    else delete this.settings.savedFolds[path];
+    void this.saveSettings();
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────
@@ -377,4 +414,18 @@ class YamlEditorSettingTab extends PluginSettingTab {
       b.setButtonText("Add snippet").setIcon("plus").onClick(() => addSnippetRow()),
     );
   }
+}
+
+/** Saved folds from data.json, keeping only well-formed entries (older builds saved a different shape). */
+function cleanSavedFolds(raw: unknown): Record<string, FoldEntry[]> {
+  const out: Record<string, FoldEntry[]> = {};
+  if (!raw || typeof raw !== "object") return out;
+  for (const [path, list] of Object.entries(raw as Record<string, unknown>)) {
+    if (!Array.isArray(list)) continue;
+    const ok = list.filter(
+      (e): e is FoldEntry => !!e && typeof (e as FoldEntry).path === "string" && typeof (e as FoldEntry).fp === "string",
+    );
+    if (ok.length) out[path] = ok;
+  }
+  return out;
 }

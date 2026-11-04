@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Folds are remembered** in standalone `.yaml` files: when you close a file,
+  switch files or restart, and when the file changes on disk. A fold is saved
+  as the node it collapses (its full path, like `tasks[1].sub`, plus a
+  fingerprint), not a line number, so it follows a list item after items are
+  inserted above it or the list is reordered. A fold that can't be placed with
+  confidence is dropped rather than guessed. Nothing is written into the YAML.
+
 ## [1.1.0] — 2026-11-04
 
 ### Added

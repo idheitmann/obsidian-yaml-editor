@@ -17,7 +17,7 @@ YAML Editor should be the editor anyone working with YAML in Obsidian reaches fo
 |---|---|---|
 | 1.0.5 | Repair | released |
 | 1.1 | Structural editing and the rendered view | released 2026-11-04 |
-| 1.2 | Navigation that holds up | next |
+| 1.2 | Navigation that holds up | in progress |
 | 1.3 | Schemas | planned |
 | later | Smaller gaps | |
 
@@ -40,7 +40,7 @@ Added along the way:
 
 ## 1.2: Navigation that holds up
 
-- **Folds that stay put.** The unmerged `feat-folding-persistence` branch has sound plumbing (per-file storage, following renames and deletes, saving on file switch) but broken identity: it computes each fold's path from the start of the line, where the path lookup sees only the top level, so `a.b` is saved as `b`, two `sub:` blocks under different list items get the same name, and list items get no name at all. Rebuild on `main` instead of merging: compute the path from the structure model in `src/yaml/structure.ts` (parents give `tasks[1].sub`), add a fingerprint (the key, and for list items a short hash of identifying values) to find a node whose list position changed, and drop a fold rather than guess. Identity lives in pure, tested functions. Nothing is written into the user's YAML.
+- **Folds that stay put.** Done on `main` (unreleased): folds are saved by node identity, a path built from the structure model (`tasks[1].sub`) plus a fingerprint, and re-found after inserts, reorders and external edits, or dropped. Identity and matching are pure and tested (`src/yaml/foldid.ts`, `src/editor/foldstate.ts`). Replaces the unmerged `feat-folding-persistence` branch, whose paths lost their parents.
 - **Full multi-document support.** Breadcrumbs, go-to-key, folding and the rendered view work per document, and the breadcrumb shows which document the cursor is in.
 - **Outline view.** A sidebar showing the open file's structure, like Obsidian's Outline does for headings: collapsible keys and list items, click to jump, current position highlighted. It can read the same structure model as structural editing and fold identity, exposed through a small public API other plugins can use.
 - **Large files stay responsive.** The editor reparses the whole file on every change, and the rendered view re-renders on change. In a test outside Obsidian, parsing a 40,000-line file took about 0.9 seconds. Measure inside Obsidian, then debounce above a size threshold and keep per-keystroke work on the cheap line-based scan.

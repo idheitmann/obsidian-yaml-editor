@@ -48,6 +48,10 @@ Completions and the palette draw from both: the inferred `SchemaTracker` (above)
 
 `src/render/` is a pure, schema-agnostic YAML → HTML renderer ([RENDER.md](RENDER.md)). `renderYaml`/`renderPage` take a `palette`: `inline` (fixed colours, paste-safe, used for "Render to HTML file" and the `npm run render` CLI) or `theme` (Obsidian CSS variables, clickable `data-yr-path` links, used by the in-app view). `YamlFileView` hosts it as a toggle: the CodeMirror editor stays mounted but hidden, the rendered pane is built with `sanitizeHTMLToDom`, and `cmView` returns null while rendered so editing commands can't act on hidden text. The mode decision is pure (`initialMode` in [src/render/viewmode.ts](src/render/viewmode.ts)) and the chosen mode is kept in the pane state (`getState`/`setState`).
 
+### Remembered folds
+
+Standalone `.yaml` files remember their folds per file in plugin settings (`savedFolds`), keyed by node identity rather than line: `FoldIdentities` in [src/yaml/foldid.ts](src/yaml/foldid.ts) builds each node's instance path from the structure model (`parentOf`/`siblingsOf`) plus a fingerprint, and `matchFoldEntries` re-finds them (exact, then a unique fingerprint match among same-shape nodes, else drop). [src/editor/foldstate.ts](src/editor/foldstate.ts) bridges to CodeMirror's `foldState`. `YamlFileView` saves on fold change (debounced), `onUnloadFile` and close, restores on load, and carries folds across external edits. Whole-document replacements go through `replaceDoc`, which sets `restoringFolds` so the wiped folds aren't saved as a user unfold.
+
 ## Conventions & gotchas
 
 - **Two settings definitions exist.** `main.ts` defines the live `PluginSettings` interface + `DEFAULT_SETTINGS` it actually uses; [src/settings.ts](src/settings.ts) has an unused `PluginSettings` class. Edit the one in `main.ts`.

@@ -14,7 +14,7 @@ It works in note frontmatter, ` ```yaml ` code blocks, and standalone `.yaml` / 
 
 **Rendered view.** In a standalone `.yaml` file, the book icon in the header switches to a read-only report: headings, tables and paragraphs laid out from the shape of the data, in your theme's colours, with vault paths you can click. The pencil switches back. An optional `_view:` block in the file controls the title, section order, labels and summary tables; files with one open rendered by default. *YAML: Render to HTML file* saves a static copy next to the YAML that pastes cleanly into Word or Google Docs. See [RENDER.md](RENDER.md) for the `_view` options.
 
-**Orientation.** Folding, a status-bar breadcrumb (`project › milestones[2] › title`), index markers on list items, *Go to key…* by dotted path, and quiet parse-error markers. It reports parse errors only and isn't a style linter.
+**Orientation.** Folding that's remembered per file, even after edits, a status-bar breadcrumb (`project › milestones[2] › title`), index markers on list items, *Go to key…* by dotted path, and quiet parse-error markers. It reports parse errors only and isn't a style linter.
 
 **Smaller tools.** Toggle minimal quoting on a value, add and reference anchors, insert today's date, and insert a frontmatter block.
 
