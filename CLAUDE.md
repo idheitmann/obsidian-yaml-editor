@@ -44,6 +44,10 @@ Path identity across the codebase is the string form from `pathKey()` ([src/yaml
 
 Completions and the palette draw from both: the inferred `SchemaTracker` (above) and **explicit JSON Schemas**. `SchemaStore` ([src/yaml/schemastore.ts](src/yaml/schemastore.ts)) loads `*.json` from the configured dir via the vault *adapter* (the dir is under `.obsidian/`, outside `getFiles()`), keyed by basename and `$id`. A region opts in via `resolveSchemaName(text)` (top-level `_schema:` or a `# yaml-schema:` comment). Navigation of the schema (`schemaAtPath`/`propertiesAt`/`enumAt`, with local `$ref` deref only) is pure and tested in [src/yaml/jsonschema.ts](src/yaml/jsonschema.ts). Schema-derived completions are ranked above inferred ones (`boost`).
 
+### Rendered view
+
+`src/render/` is a pure, schema-agnostic YAML → HTML renderer ([RENDER.md](RENDER.md)). `renderYaml`/`renderPage` take a `palette`: `inline` (fixed colours, paste-safe, used for "Render to HTML file" and the `npm run render` CLI) or `theme` (Obsidian CSS variables, clickable `data-yr-path` links, used by the in-app view). `YamlFileView` hosts it as a toggle: the CodeMirror editor stays mounted but hidden, the rendered pane is built with `sanitizeHTMLToDom`, and `cmView` returns null while rendered so editing commands can't act on hidden text. The mode decision is pure (`initialMode` in [src/render/viewmode.ts](src/render/viewmode.ts)) and the chosen mode is kept in the pane state (`getState`/`setState`).
+
 ## Conventions & gotchas
 
 - **Two settings definitions exist.** `main.ts` defines the live `PluginSettings` interface + `DEFAULT_SETTINGS` it actually uses; [src/settings.ts](src/settings.ts) has an unused `PluginSettings` class. Edit the one in `main.ts`.

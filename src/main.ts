@@ -1,4 +1,4 @@
-import { App, MarkdownView, Notice, Plugin, PluginSettingTab, Setting } from "obsidian";
+import { App, MarkdownView, Notice, Plugin, PluginSettingTab, Setting, TFile } from "obsidian";
 import { EditorView } from "@codemirror/view";
 import { yamlEditorExtension } from "./editor/extension";
 import { SchemaTracker } from "./yaml/schema";
@@ -6,6 +6,8 @@ import { SchemaStore } from "./yaml/schemastore";
 import { insertFrontmatter } from "./ui/quickadd";
 import { SchemaPaletteModal } from "./ui/palette";
 import { YamlFileView, VIEW_TYPE_YAML } from "./ui/yamlview";
+import { renderPage } from "./render/render";
+import { htmlPathFor } from "./render/viewmode";
 import {
   cursorInYaml,
   cmToggleQuote,
@@ -30,6 +32,8 @@ interface PluginSettings {
   showGhostText: boolean;
   showBreadcrumbs: boolean;
   hangingIndent: boolean;
+  /** Open .yaml files that have a top-level `_view:` block in the rendered view. */
+  renderReports: boolean;
   customSnippets: SnippetTemplate[];
 }
 
@@ -39,6 +43,7 @@ const DEFAULT_SETTINGS: PluginSettings = {
   showGhostText: true,
   showBreadcrumbs: true,
   hangingIndent: true,
+  renderReports: true,
   customSnippets: [],
 };
 
@@ -119,6 +124,28 @@ export default class YamlEditorPlugin extends Plugin {
       }),
     );
 
+    // ── Rendered view (standalone .yaml files) ──────────────────────────
+    this.addCommand({
+      id: "yaml-toggle-rendered-view",
+      name: "YAML: Toggle rendered view",
+      checkCallback: (checking) => {
+        const view = this.app.workspace.getActiveViewOfType(YamlFileView);
+        if (!view) return false;
+        if (!checking) view.toggleMode();
+        return true;
+      },
+    });
+    this.addCommand({
+      id: "yaml-render-to-html",
+      name: "YAML: Render to HTML file",
+      checkCallback: (checking) => {
+        const view = this.app.workspace.getActiveViewOfType(YamlFileView);
+        if (!view?.file) return false;
+        if (!checking) void this.renderToHtml(view.file, view.getViewData());
+        return true;
+      },
+    });
+
     this.addCommand({
       id: "yaml-reload-schemas",
       name: "YAML: Reload schemas",
@@ -154,6 +181,23 @@ export default class YamlEditorPlugin extends Plugin {
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────
+
+  /** Writes the static page (fixed colours, safe to paste into Word or Google Docs) next to the YAML file. */
+  private async renderToHtml(file: TFile, text: string): Promise<void> {
+    const target = htmlPathFor(file.path);
+    const { html, errors } = renderPage(text, {
+      fallbackTitle: file.basename,
+      source: file.name,
+      generated: new Date().toISOString().slice(0, 10),
+    });
+    const existing = this.app.vault.getAbstractFileByPath(target);
+    if (existing instanceof TFile) await this.app.vault.modify(existing, html);
+    else if (existing) {
+      new Notice(`Can't write ${target}: a folder has that name.`);
+      return;
+    } else await this.app.vault.create(target, html);
+    new Notice(`Wrote ${target}${errors.length ? ` (with ${errors.length} YAML error${errors.length === 1 ? "" : "s"})` : ""}`);
+  }
 
   /** The CodeMirror view of the active YAML editor (Markdown note or .yaml file), or null. */
   private resolveCmView(): EditorView | null {
@@ -217,6 +261,19 @@ class YamlEditorSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
             await this.plugin.schemaStore.reload();
           }),
+      );
+
+    new Setting(containerEl)
+      .setName("Open reports in rendered view")
+      .setDesc(
+        "Standalone .yaml files with a top-level `_view:` block open as a rendered report. " +
+          "The header button switches between rendered and editing in any YAML file.",
+      )
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.renderReports).onChange(async (val) => {
+          this.plugin.settings.renderReports = val;
+          await this.plugin.saveSettings();
+        }),
       );
 
     new Setting(containerEl)

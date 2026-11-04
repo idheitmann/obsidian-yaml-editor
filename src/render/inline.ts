@@ -2,6 +2,7 @@
 // cross-references. Output uses only inline styles so it survives a paste
 // into Word or Google Docs. Pure; no DOM.
 
+import { INLINE_STYLES, type InlineStyle } from "./styles";
 import type { RefIndex } from "./util";
 
 export function escapeHtml(s: string): string {
@@ -32,11 +33,17 @@ export function asPath(value: string): { path: string; note?: string } | null {
   return { path, note: m[2] };
 }
 
-/** Filename first, folder after it in grey: `Plan.md (projects/X)`. */
-export function renderPath(path: string, note: string | undefined, refs: RefIndex): string {
+/**
+ * Filename first, folder after it in a muted colour: `Plan.md (projects/X)`.
+ * With `pathLinks`, the filename is a link carrying the vault path in
+ * `data-yr-path`, for the in-app view to open.
+ */
+export function renderPath(path: string, note: string | undefined, refs: RefIndex, st: InlineStyle = INLINE_STYLES.inline): string {
   const i = path.lastIndexOf("/");
-  const dir = i >= 0 ? ` <span style="color:#777777">(${escapeHtml(path.slice(0, i))})</span>` : "";
-  return `${escapeHtml(i >= 0 ? path.slice(i + 1) : path)}${dir}${note ? ` ${renderInline(note, refs)}` : ""}`;
+  const base = escapeHtml(i >= 0 ? path.slice(i + 1) : path);
+  const name = st.pathLinks ? `<a href="#" data-yr-path="${escapeHtml(path)}" title="${escapeHtml(path)}">${base}</a>` : base;
+  const dir = i >= 0 ? ` <span style="${st.muted}">(${escapeHtml(path.slice(0, i))})</span>` : "";
+  return `${name}${dir}${note ? ` ${renderInline(note, refs, st)}` : ""}`;
 }
 
 // One pass over the raw text. Each alternative is a token; text between
@@ -55,7 +62,7 @@ const TOKEN = new RegExp(
   "g",
 );
 
-export function renderInline(text: string, refs: RefIndex): string {
+export function renderInline(text: string, refs: RefIndex, st: InlineStyle = INLINE_STYLES.inline): string {
   let out = "";
   let last = 0;
   // matchAll iterates a copy of the regex, so recursive calls (bold, italic)
@@ -63,11 +70,11 @@ export function renderInline(text: string, refs: RefIndex): string {
   for (const m of text.matchAll(TOKEN)) {
     out += escapeHtml(text.slice(last, m.index));
     last = m.index + m[0].length;
-    if (m[1] !== undefined) out += `<span style="font-family:Consolas,monospace">${escapeHtml(m[1])}</span>`;
+    if (m[1] !== undefined) out += `<span style="${st.mono}">${escapeHtml(m[1])}</span>`;
     else if (m[2] !== undefined) out += escapeHtml((m[3] ?? m[2]).trim());
     else if (m[4] !== undefined && m[5] !== undefined) out += `<a href="${escapeHtml(m[5])}">${escapeHtml(m[4])}</a>`;
-    else if (m[6] !== undefined) out += `<strong>${renderInline(m[6], refs)}</strong>`;
-    else if (m[7] !== undefined) out += `<em>${renderInline(m[7], refs)}</em>`;
+    else if (m[6] !== undefined) out += `<strong>${renderInline(m[6], refs, st)}</strong>`;
+    else if (m[7] !== undefined) out += `<em>${renderInline(m[7], refs, st)}</em>`;
     else if (m[8] !== undefined) out += `<a href="${escapeHtml(m[8])}">${escapeHtml(m[8])}</a>`;
     else if (m[9] !== undefined) out += escapeHtml(refs.get(m[9])?.label ?? m[9]);
   }

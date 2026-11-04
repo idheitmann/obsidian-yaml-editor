@@ -2,12 +2,15 @@
 
 `src/render/` turns any YAML document into a plain HTML report. It knows no schema: layout comes from the shape of the data, plus optional hints the file carries in a top-level `_view:` key. A file without `_view` still renders.
 
-The markup is deliberately simple: headings, paragraphs, bullet lists and tables, styled inline. That is what survives a paste into Word or Google Docs, and it reads fine in a browser or an Obsidian HTML-reader plugin. There are no classes, grid or flex layout, CSS variables, scripts or internal links.
+The markup is deliberately simple: headings, paragraphs, bullet lists and tables, styled inline. That is what survives a paste into Word or Google Docs, and it reads fine in a browser or an Obsidian HTML-reader plugin. The exported page has no classes, grid or flex layout, CSS variables, scripts or internal links.
 
-## Two ways in
+## Three ways in
 
-- **`renderPage(text)` / `renderYaml(text)`** in `src/render/render.ts`: pure functions (text in, escaped HTML string out) with no Node or DOM dependencies. This is what the plugin calls, for example from a "Render to HTML" command that writes the page next to the `.yaml` through the vault adapter, or from a view.
-- **The CLI**, `npm run render -- <file.yaml> [-o out.html] [--docx]`, a Node script for the terminal and for agents. It writes `<file>.html` next to the YAML. `--docx` also writes a Word file, converted with LibreOffice (which keeps table borders and bold labels), falling back to pandoc. The CLI uses Node APIs (`fs`, `child_process`), so it does not run inside Obsidian.
+- **In Obsidian, the rendered view.** Standalone `.yaml` files get a header button (and the command "YAML: Toggle rendered view") that switches between the editor and the rendered report. It uses the `theme` palette: no fixed fonts or colours, Obsidian's theme variables instead, and vault paths as clickable links. It re-renders as the file changes. Files with a top-level `_view:` block open rendered by default (setting "Open reports in rendered view"); a mode picked with the toggle is remembered by the pane.
+- **In Obsidian, "YAML: Render to HTML file".** Writes `<file>.html` next to the YAML with the `inline` palette (fixed black-on-white, paste-safe). Use it when you want a static copy to share or paste.
+- **The CLI**, `npm run render -- <file.yaml> [-o out.html] [--docx]`, a Node script for the terminal and for agents. Same output as the command. `--docx` also writes a Word file, converted with LibreOffice (which keeps table borders and bold labels), falling back to pandoc. The CLI uses Node APIs (`fs`, `child_process`), so it does not run inside Obsidian, and `.docx` is CLI-only.
+
+All three call the same pure functions in `src/render/render.ts` (`renderYaml`, `renderPage`): text in, escaped HTML string out, with a `palette` option (`inline` or `theme`, defined in `styles.ts`).
 
 ## Getting it into a document
 

@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Rendered view for standalone `.yaml` files.** A header button (or "YAML:
+  Toggle rendered view") switches a file between the editor and a read-only
+  report: headings, label tables, records, legends and summary tables, laid out
+  from the data's shape with no schema needed. A top-level `_view:` block can
+  steer it (title, intro, section order, labels, record headlines and
+  narrative, pivot tables); see [RENDER.md](RENDER.md). Colours follow the
+  theme, vault paths are clickable, and the view updates as the file changes.
+  Files with a `_view:` block open rendered by default (setting "Open reports
+  in rendered view"); a mode picked with the toggle is remembered by the pane.
+- **YAML: Render to HTML file** writes a static page next to the YAML, with
+  fixed colours and only paste-safe markup, so it pastes cleanly into Word or
+  Google Docs or opens in Drive as a Google Doc. `npm run render` does the same
+  from the terminal, with `--docx` for a Word file.
+
 - **Structural editing.** Every command below changes only the lines it
   restructures; comments, blank lines and formatting elsewhere are untouched.
   A node's subtree and the comments directly above it move with it.

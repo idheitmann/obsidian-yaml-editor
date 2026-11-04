@@ -172,3 +172,25 @@
   font-style: italic;
   color: var(--text-accent, #5a8);
 }
+
+/* ── Rendered view (standalone .yaml files) ────────────────────────────── */
+/* Colours and table styling come inline from the renderer's "theme" palette
+   (src/render/styles.ts); this only frames the pane. */
+
+.yaml-editor-view .yaml-rendered-view {
+  height: 100%;
+  overflow-y: auto;
+  padding: var(--file-margins, 32px);
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.yaml-editor-view .yaml-rendered-inner {
+  max-width: var(--file-line-width, 46rem);
+  margin: 0 auto;
+}
+
+.yaml-rendered-error {
+  color: var(--text-error);
+  font-size: var(--font-ui-small);
+}

@@ -10,11 +10,14 @@
 import { parseAllDocuments } from "yaml";
 import { getPath, readHints, type ListHints, type ViewHints } from "./hints";
 import { asPath, escapeHtml, renderInline, renderPath } from "./inline";
+import { stylesFor, type Palette, type Styles } from "./styles";
 import { buildRefs, humanize, isObj, isScalar, leadingComment, titleOf, TITLE_KEYS, type Obj, type RefIndex } from "./util";
 
 export interface RenderOptions {
   /** Title when neither `_view.title` nor a top-level `title` exists, e.g. the filename. */
   fallbackTitle?: string;
+  /** "inline" (default): fixed colours for export and pasting. "theme": Obsidian theme variables, for the in-app view. */
+  palette?: Palette;
 }
 
 export interface RenderResult {
@@ -23,27 +26,18 @@ export interface RenderResult {
   errors: string[];
 }
 
-const FONT = "font-family:Arial,Helvetica,sans-serif";
-const TABLE = "border-collapse:collapse;width:100%;table-layout:fixed;margin:0 0 8pt 0";
-const CELL = `border:1px solid #bfbfbf;padding:3pt 5pt;vertical-align:top;text-align:left;${FONT};font-size:10pt`;
-const HEAD_CELL = `${CELL};background:#f2f2f2;font-weight:bold`;
-const LABEL_CELL = `${CELL};background:#f7f7f7;font-weight:bold`;
-const P = `margin:0 0 6pt 0;${FONT};font-size:11pt`;
-const LABEL_P = "margin:8pt 0 2pt 0";
-const NOTE_P = "margin:0 0 4pt 0;color:#595959;font-style:italic";
 const SHORT = 100;
 const HEADLINE_CUT = 48;
 
-function heading(level: number, html: string): string {
+function heading(st: Styles, level: number, html: string): string {
   const lv = Math.min(Math.max(level, 1), 4);
-  const size = ["20pt", "15pt", "13pt", "11pt"][lv - 1];
-  return `<h${lv} style="${FONT};font-size:${size};font-weight:bold;margin:${lv <= 2 ? "16pt" : "12pt"} 0 4pt 0">${html}</h${lv}>`;
+  return `<h${lv} style="${st.heading(lv)}">${html}</h${lv}>`;
 }
 
 /** `width` attributes as well as CSS: LibreOffice's HTML import (used for .docx) only honours the attributes. */
-function table(widths: number[], inner: string): string {
+function htmlTable(st: Styles, widths: number[], inner: string): string {
   const cols = widths.map((w) => `<col width="${w}%" style="width:${w}%">`).join("");
-  return `<table width="100%" style="${TABLE}"><colgroup>${cols}</colgroup>${inner}</table>`;
+  return `<table width="100%" style="${st.table}"><colgroup>${cols}</colgroup>${inner}</table>`;
 }
 
 class Renderer {
@@ -51,6 +45,7 @@ class Renderer {
   constructor(
     private data: Obj,
     private hints: ViewHints,
+    private s: Styles,
   ) {
     this.refs = buildRefs(data);
   }
@@ -63,8 +58,8 @@ class Renderer {
     const ref = this.refs.get(s.trim());
     if (ref) return escapeHtml(ref.label);
     const p = asPath(s);
-    if (p) return renderPath(p.path, p.note, this.refs);
-    return renderInline(s, this.refs);
+    if (p) return renderPath(p.path, p.note, this.refs, this.s.inline);
+    return renderInline(s, this.refs, this.s.inline);
   }
 
   /** Paragraphs on blank lines; a block of "- " lines becomes a bullet list. */
@@ -75,9 +70,9 @@ class Renderer {
       .map((block) => {
         const lines = block.split("\n");
         if (lines.every((l) => /^\s*[-*]\s+/.test(l))) {
-          return `<ul style="${P}">${lines.map((l) => `<li>${this.inline(l.replace(/^\s*[-*]\s+/, ""))}</li>`).join("")}</ul>`;
+          return `<ul style="${this.s.p}">${lines.map((l) => `<li>${this.inline(l.replace(/^\s*[-*]\s+/, ""))}</li>`).join("")}</ul>`;
         }
-        return `<p style="${P}">${this.inline(lines.join(" "))}</p>`;
+        return `<p style="${this.s.p}">${this.inline(lines.join(" "))}</p>`;
       })
       .join("");
   }
@@ -98,11 +93,11 @@ class Renderer {
   /** Any value as block content. */
   block(v: unknown, path: string, depth: number, skip: string[] = []): string {
     const s = this.short(v);
-    if (s !== null) return `<p style="${P}">${s}</p>`;
+    if (s !== null) return `<p style="${this.s.p}">${s}</p>`;
     if (typeof v === "string") return this.prose(v);
     if (Array.isArray(v)) return this.list(v, path, depth);
     if (isObj(v)) return this.fields(v, path, depth, skip);
-    return `<p style="${P}">${escapeHtml(String(v))}</p>`;
+    return `<p style="${this.s.p}">${escapeHtml(String(v))}</p>`;
   }
 
   /**
@@ -114,7 +109,7 @@ class Renderer {
     let out = "";
     let rows: string[] = [];
     const flush = () => {
-      if (rows.length) out += table([28, 72], `<tbody>${rows.join("")}</tbody>`);
+      if (rows.length) out += htmlTable(this.s, [28, 72], `<tbody>${rows.join("")}</tbody>`);
       rows = [];
     };
     for (const [k, v] of Object.entries(obj)) {
@@ -125,11 +120,11 @@ class Renderer {
       const label = escapeHtml(this.label(k, childPath));
       const s = this.short(v);
       if (s !== null) {
-        rows.push(`<tr><td style="${LABEL_CELL}"><strong>${label}</strong></td><td style="${CELL}">${s}</td></tr>`);
+        rows.push(`<tr><td style="${this.s.labelCell}"><strong>${label}</strong></td><td style="${this.s.cell}">${s}</td></tr>`);
         continue;
       }
       flush();
-      out += `<p style="${LABEL_P}"><strong>${label}</strong></p>${this.block(v, childPath, depth + 1, sub)}`;
+      out += `<p style="${this.s.labelP}"><strong>${label}</strong></p>${this.block(v, childPath, depth + 1, sub)}`;
     }
     flush();
     return out;
@@ -142,12 +137,12 @@ class Renderer {
   }
 
   list(items: unknown[], path: string, depth: number, hints?: ListHints): string {
-    if (!items.length) return `<p style="${P}">—</p>`;
+    if (!items.length) return `<p style="${this.s.p}">—</p>`;
     const objs = items.every(isObj);
     const layout = hints?.as ?? (!objs ? "list" : this.tableable(items) ? "table" : "cards");
     if (layout === "table" && objs) return this.table(items as Obj[], path);
     if (layout === "cards" && objs) return this.cards(items as Obj[], path, depth, hints);
-    return `<ul style="${P}">${items
+    return `<ul style="${this.s.p}">${items
       .map((i) => `<li>${this.short(i) ?? (typeof i === "string" ? this.inline(i) : this.block(i, path, depth + 1))}</li>`)
       .join("")}</ul>`;
   }
@@ -156,10 +151,10 @@ class Renderer {
     const keys: string[] = [];
     for (const i of items) for (const k of Object.keys(i)) if (!k.startsWith("_") && !keys.includes(k)) keys.push(k);
     const w = Math.floor(100 / keys.length);
-    return table(
+    return htmlTable(this.s,
       keys.map(() => w),
-      `<thead><tr>${keys.map((k) => `<th style="${HEAD_CELL}">${escapeHtml(this.label(k, `${path}.${k}`))}</th>`).join("")}</tr></thead>` +
-        `<tbody>${items.map((i) => `<tr>${keys.map((k) => `<td style="${CELL}">${this.short(i[k]) ?? this.inline(String(i[k]))}</td>`).join("")}</tr>`).join("")}</tbody>`,
+      `<thead><tr>${keys.map((k) => `<th style="${this.s.headCell}">${escapeHtml(this.label(k, `${path}.${k}`))}</th>`).join("")}</tr></thead>` +
+        `<tbody>${items.map((i) => `<tr>${keys.map((k) => `<td style="${this.s.cell}">${this.short(i[k]) ?? this.inline(String(i[k]))}</td>`).join("")}</tr>`).join("")}</tbody>`,
     );
   }
 
@@ -182,12 +177,12 @@ class Renderer {
           head.push(`<strong>${escapeHtml(this.label(hl.split(".").pop() ?? hl, `${path}.${hl}`))}:</strong> ${ref ? escapeHtml(text) : this.inline(text)}`);
           if (ref || text === s) skip.push(hl);
         }
-        let out = heading(depth <= 1 ? 3 : 4, this.inline(title));
-        if (head.length) out += `<p style="${P}">${head.join(" &nbsp;·&nbsp; ")}</p>`;
+        let out = heading(this.s, depth <= 1 ? 3 : 4, this.inline(title));
+        if (head.length) out += `<p style="${this.s.p}">${head.join(" &nbsp;·&nbsp; ")}</p>`;
         for (const np of hints?.narrative ?? []) {
           const v = getPath(item, np);
           if (v === undefined) continue;
-          out += `<p style="${LABEL_P}"><strong>${escapeHtml(this.label(np.split(".").pop() ?? np, `${path}.${np}`))}</strong></p>${this.block(v, `${path}.${np}`, depth + 1)}`;
+          out += `<p style="${this.s.labelP}"><strong>${escapeHtml(this.label(np.split(".").pop() ?? np, `${path}.${np}`))}</strong></p>${this.block(v, `${path}.${np}`, depth + 1)}`;
           skip.push(np);
         }
         return out + this.fields(item, path, depth, skip);
@@ -202,7 +197,7 @@ class Renderer {
         const e = entry as Obj;
         const labelKey = ["label", "title", "name"].find((k) => typeof e[k] === "string");
         const label = labelKey ? String(e[labelKey]) : humanize(key);
-        return heading(3, this.inline(label)) + this.fields(e, `${section}.${key}`, 2, labelKey ? [labelKey] : []);
+        return heading(this.s, 3, this.inline(label)) + this.fields(e, `${section}.${key}`, 2, labelKey ? [labelKey] : []);
       })
       .join("");
   }
@@ -224,16 +219,16 @@ class Renderer {
     }
     const order = [...this.refs.keys()];
     cols.sort((a, b) => (order.indexOf(a) + 1 || 1e9) - (order.indexOf(b) + 1 || 1e9));
-    const head = cols.map((c) => `<th style="${HEAD_CELL};text-align:center">${escapeHtml(this.refs.get(c)?.label ?? c)}</th>`).join("");
+    const head = cols.map((c) => `<th style="${this.s.headCell};text-align:center">${escapeHtml(this.refs.get(c)?.label ?? c)}</th>`).join("");
     const body = rows
       .map((r, i) => {
         const c = colOf(r);
-        return `<tr><td style="${LABEL_CELL}"><strong>${escapeHtml(titleOf(r, lh?.title) ?? `Item ${i + 1}`)}</strong></td>${cols.map((col) => `<td style="${CELL};text-align:center">${col === c ? "●" : ""}</td>`).join("")}</tr>`;
+        return `<tr><td style="${this.s.labelCell}"><strong>${escapeHtml(titleOf(r, lh?.title) ?? `Item ${i + 1}`)}</strong></td>${cols.map((col) => `<td style="${this.s.cell};text-align:center">${col === c ? "●" : ""}</td>`).join("")}</tr>`;
       })
       .join("");
     const title = m.title ?? `${this.label(m.rows, m.rows)} by ${this.label(m.cols.split(".").pop() ?? m.cols, m.cols).toLowerCase()}`;
     const rest = cols.length ? Math.floor(72 / cols.length) : 72;
-    return heading(2, escapeHtml(title)) + table([28, ...cols.map(() => rest)], `<thead><tr><th style="${HEAD_CELL}"></th>${head}</tr></thead><tbody>${body}</tbody>`);
+    return heading(this.s, 2, escapeHtml(title)) + htmlTable(this.s, [28, ...cols.map(() => rest)], `<thead><tr><th style="${this.s.headCell}"></th>${head}</tr></thead><tbody>${body}</tbody>`);
   }
 
   document(title: string, comment: string): string {
@@ -242,15 +237,15 @@ class Renderer {
     if (h.intro) used.add(h.intro);
     if (h.facts) used.add(h.facts);
     if (!h.title && typeof this.data.title === "string") used.add("title");
-    let out = heading(1, this.inline(title));
+    let out = heading(this.s, 1, this.inline(title));
     if (h.facts && isObj(this.data[h.facts])) {
       const facts = Object.entries(this.data[h.facts] as Obj)
         .filter(([k]) => !k.startsWith("_"))
         .map(([k, v]) => `<strong>${escapeHtml(this.label(k, `${h.facts}.${k}`))}:</strong> ${this.short(v) ?? this.inline(String(v))}`);
-      out += `<p style="${P};color:#404040">${facts.join("<br>")}</p>`;
+      out += `<p style="${this.s.facts}">${facts.join("<br>")}</p>`;
     }
     if (comment && h.comment !== false) {
-      out += comment.split("\n").filter((l) => l.trim()).map((l) => `<p style="${NOTE_P}">${this.inline(l)}</p>`).join("");
+      out += comment.split("\n").filter((l) => l.trim()).map((l) => `<p style="${this.s.noteP}">${this.inline(l)}</p>`).join("");
     }
     if (h.intro && typeof this.data[h.intro] === "string") out += this.prose(this.data[h.intro] as string);
     out += (h.matrix ?? []).map((m) => this.matrix(m)).join("");
@@ -258,7 +253,7 @@ class Renderer {
     const ordered = [...(h.order ?? []).filter((k) => keys.includes(k)), ...keys.filter((k) => !(h.order ?? []).includes(k))];
     for (const k of ordered) {
       const v = this.data[k];
-      out += heading(2, escapeHtml(this.label(k, k)));
+      out += heading(this.s, 2, escapeHtml(this.label(k, k)));
       if (isObj(v) && Object.values(v).length && Object.values(v).every(isObj)) out += this.entries(k, v);
       else if (Array.isArray(v)) out += this.list(v, k, 1, h.lists?.[k]);
       else out += this.block(v, k, 1);
@@ -269,13 +264,14 @@ class Renderer {
 
 /** Renders already-parsed data. */
 export function renderData(data: unknown, opts: RenderOptions & { comment?: string } = {}): { html: string; title: string } {
+  const st = stylesFor(opts.palette);
   if (!isObj(data)) {
     const title = opts.fallbackTitle ?? "Untitled";
-    return { title, html: heading(1, escapeHtml(title)) + new Renderer({}, {}).block(data, "", 0) };
+    return { title, html: heading(st, 1, escapeHtml(title)) + new Renderer({}, {}, st).block(data, "", 0) };
   }
   const hints = readHints(data._view);
   const title = hints.title ?? (typeof data.title === "string" ? data.title : undefined) ?? opts.fallbackTitle ?? "Untitled";
-  return { title, html: new Renderer(data, hints).document(title, opts.comment ?? "") };
+  return { title, html: new Renderer(data, hints, st).document(title, opts.comment ?? "") };
 }
 
 /** Parses YAML text (all documents) and renders the body. Parse errors are reported, not thrown. */
@@ -294,12 +290,13 @@ export function renderYaml(text: string, opts: RenderOptions = {}): RenderResult
 
 /** A whole self-contained page: open it in a browser or Word, upload it to Drive, or select all and paste. */
 export function renderPage(text: string, opts: RenderOptions & { source?: string; generated?: string } = {}): { html: string; errors: string[] } {
+  const st = stylesFor(opts.palette);
   const r = renderYaml(text, opts);
   const errors = r.errors.length
-    ? `<p style="${P};color:#a00000"><strong>YAML errors:</strong> ${r.errors.map(escapeHtml).join("; ")}</p>`
+    ? `<p style="${st.error}"><strong>YAML errors:</strong> ${r.errors.map(escapeHtml).join("; ")}</p>`
     : "";
   const footer = opts.source
-    ? `<p style="${NOTE_P}">Rendered from ${escapeHtml(opts.source)}${opts.generated ? ` on ${escapeHtml(opts.generated)}` : ""}. Edit the YAML, not this page.</p>`
+    ? `<p style="${st.noteP}">Rendered from ${escapeHtml(opts.source)}${opts.generated ? ` on ${escapeHtml(opts.generated)}` : ""}. Edit the YAML, not this page.</p>`
     : "";
   return {
     errors: r.errors,
@@ -310,7 +307,7 @@ export function renderPage(text: string, opts: RenderOptions & { source?: string
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(r.title)}</title>
 </head>
-<body style="${FONT};font-size:11pt;line-height:1.4;color:#000000;background:#ffffff;max-width:7.5in;margin:24pt auto;padding:0 16px">
+<body style="${st.body}">
 ${errors}${r.html}
 ${footer}
 </body>
