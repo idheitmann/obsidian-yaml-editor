@@ -1,27 +1,35 @@
 # Rendered view
 
-`src/render/` turns any YAML document into a read-only HTML report. It knows no schema: layout comes from the shape of the data, plus optional hints the file carries in a top-level `_view:` key. A file without `_view` still renders.
+`src/render/` turns any YAML document into a plain HTML report. It knows no schema: layout comes from the shape of the data, plus optional hints the file carries in a top-level `_view:` key. A file without `_view` still renders.
 
-The renderer is a pure function (`renderYaml(text, opts)` → `{ html, title, errors }`) with every value escaped, so the same code serves two surfaces:
+The markup is deliberately simple: headings, paragraphs, bullet lists and tables, styled inline. That is what survives a paste into Word or Google Docs, and it reads fine in a browser or an Obsidian HTML-reader plugin. There are no classes, grid or flex layout, CSS variables, scripts or internal links.
 
-- **Standalone page:** `npm run render -- <file.yaml> [-o out.html] [--vault <name>]` writes a self-contained HTML file (no scripts, no network). With `--vault`, vault paths and wikilinks become `obsidian://open` links.
-- **Obsidian view (not wired yet):** call `renderYaml` from a view on `.yaml` files, pass a `link` resolver that maps vault paths to internal links, and add `RENDER_CSS` (from `styles.ts`). Its tokens fall back to Obsidian's theme variables, so it follows the vault theme.
+## Two ways in
+
+- **`renderPage(text)` / `renderYaml(text)`** in `src/render/render.ts`: pure functions (text in, escaped HTML string out) with no Node or DOM dependencies. This is what the plugin calls, for example from a "Render to HTML" command that writes the page next to the `.yaml` through the vault adapter, or from a view.
+- **The CLI**, `npm run render -- <file.yaml> [-o out.html] [--docx]`, a Node script for the terminal and for agents. It writes `<file>.html` next to the YAML. `--docx` also writes a Word file, converted with LibreOffice (which keeps table borders and bold labels), falling back to pandoc. The CLI uses Node APIs (`fs`, `child_process`), so it does not run inside Obsidian.
+
+## Getting it into a document
+
+- **Paste:** open the `.html` in a browser, select all, paste into Word or a Google Doc.
+- **Google Docs without pasting:** upload the `.html` to Drive and choose *Open with → Google Docs*.
+- **Word:** open the `.html` in Word, or use `--docx`.
 
 ## What it does without hints
 
 | Data shape | Rendered as |
 |---|---|
-| Map | Label/value rows; keys humanized (`changes_needed` → "Changes needed") |
-| Long string (over 140 characters, or multi-line) | Prose: paragraphs on blank lines, `- ` lines as bullets |
-| List of scalars | Bullets |
-| List of maps, at most 6 keys, all short scalars | Table |
-| Other list of maps | Cards, titled by `name`, `title`, `label`, `id` or `key` |
-| Top-level map whose values are all maps | Reference entries (a legend), each with an anchor |
-| A value equal to a legend key, or a `snake_case` identifier in text that matches one | Link to that entry, with its summary on hover |
-| A vault path (`folder/File.md`, optionally followed by `(note)`) | Filename, with the folder muted |
-| `[[wikilink]]`, `**bold**`, `*italic*`, `` `code` ``, `[text](url)`, bare URLs | Inline markup |
+| Map | A two-column label table for runs of short values; a bold label followed by paragraphs, bullets or a nested block for longer ones. Keys are humanized (`changes_needed` → "Changes needed"). |
+| Long string (over 100 characters, or multi-line) | Paragraphs on blank lines; a block of `- ` lines as bullets |
+| List of scalars | Bullets, or a comma-separated line in a table cell when the items are short |
+| List of maps, at most 6 keys, all short scalars | A table with a header row |
+| Other list of maps | A heading per record, titled by `name`, `title`, `label`, `id` or `key` |
+| Top-level map whose values are all maps | A legend: one heading per entry |
+| A value equal to a legend key, or a `snake_case` identifier in text that matches one | The entry's label |
+| A vault path (`folder/File.md`, optionally followed by `(note)`) | The filename, with the folder in grey |
+| `**bold**`, `*italic*`, `` `code` ``, `[text](url)`, bare URLs, `[[wikilink\|alias]]` | Inline markup; wikilinks become their text |
 | Keys starting with `_` | Hidden |
-| `#` comment lines at the top of the file | A note under the title |
+| `#` comment lines at the top of the file | An italic note under the title |
 
 ## `_view` hints
 
@@ -39,17 +47,17 @@ _view:
     class: Classification
   lists:                            # per top-level sequence
     people:
-      as: cards                     # cards | table | list
+      as: cards                     # cards (a heading per record) | table | list
       title: name                   # field holding each item's title
-      headline: [status, class.target]   # badges under the title (dotted paths)
+      headline: [status, class.target]   # one "Label: value" line under the heading (dotted paths)
       narrative: [overview, intent]      # prose blocks before the remaining fields
-  matrix:                           # pivot tables, placed after the intro
+  matrix:                           # pivot tables (● marks), placed after the intro
     - title: Target classification
       rows: people                  # top-level sequence
       cols: class.target            # item field whose value picks the column
 ```
 
-Headline values longer than a short clause are cut in the badge and still shown in full in the card body. Narrative and untruncated headline fields are not repeated in the body. Matrix columns that are legend keys use the legend's labels and order.
+Headline values are shown as one bold "Label: value" line under the record's heading. A long value is cut to its first clause there and still shown in full below. Narrative and uncut headline fields are not repeated. Matrix columns that are legend keys use the legend's labels and order.
 
 Unknown or malformed hints are ignored, never fatal.
 
@@ -59,14 +67,8 @@ Unknown or malformed hints are ignored, never fatal.
 - Give legend entries a `label:` when the key doesn't humanize well (`kj_redline` → "Kj redline").
 - Use `snake_case` keys for anything you want to cross-reference from prose.
 
-## Word and Google Docs
+## Writing files for it
 
-`npm run render -- <file.yaml> --doc` also writes `<file>.doc.html` in **document mode**: the same content and the same `_view` hints, built only from markup that survives a paste into Word or Google Docs. That means headings, paragraphs, bullet lists, and tables with inline styles. There are no classes, grid or flex layout, CSS variables, scripts or internal links. Cards become headings, badges become a bold "Label: value" line, label/value rows become two-column tables, and cross-references become their plain labels.
-
-Three ways to use it:
-
-- **Paste:** open the `.doc.html` in a browser, select all, and paste into Word or a Google Doc.
-- **Google Docs without pasting:** upload the `.doc.html` to Drive and choose *Open with → Google Docs*.
-- **Word file:** `--docx` writes `<file>.docx` too. It converts with LibreOffice (`soffice`), which keeps table borders and bold labels, and falls back to pandoc if LibreOffice isn't installed.
-
-From code: `renderDocYaml(text)` and `renderDocPage(text)` in `src/render/doc.ts`.
+- Put the narrative in the data (`overview:` fields), not in the renderer. The page should never say something the record doesn't.
+- Give legend entries a `label:` when the key doesn't humanize well (`kj_redline` → "Kj redline").
+- Use `snake_case` keys for anything you want to cross-reference from prose.

@@ -1,23 +1,21 @@
-// Command-line entry: render a YAML file to HTML.
+// Command-line entry: render a YAML file to a self-contained HTML page.
 //
-//   npm run render -- <input.yaml> [-o <output.html>] [--vault <name>] [--doc] [--docx]
+//   npm run render -- <input.yaml> [-o <output.html>] [--docx]
 //
-// Default output is the web page, at the input path with .html. With --vault,
-// vault paths and wikilinks become obsidian:// links into that vault.
+// Output defaults to the input path with .html. --docx also writes a .docx
+// beside it, converted with LibreOffice (keeps table borders and bold labels),
+// falling back to pandoc.
 //
-// --doc   also writes <name>.doc.html: document mode, built for pasting into
-//         Word or Google Docs, opening in Word, or uploading to Google Drive.
-// --docx  also writes <name>.docx from the document-mode page. Uses LibreOffice,
-//         which keeps table borders and bold labels; falls back to pandoc.
+// This runs in Node, outside Obsidian. Inside the plugin, call renderPage or
+// renderYaml from render.ts directly; they are pure and need no Node APIs.
 
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readdirSync, renameSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, extname, join } from "node:path";
-import { renderDocPage } from "./doc";
-import { renderPage } from "./page";
+import { renderPage } from "./render";
 
-const USAGE = "usage: render-yaml <input.yaml> [-o output.html] [--vault <vault name>] [--doc] [--docx]";
+const USAGE = "usage: render-yaml <input.yaml> [-o output.html] [--docx]";
 
 /** Converts the document-mode page to .docx. LibreOffice first, then pandoc. */
 function toDocx(html: string, target: string): boolean {
@@ -45,15 +43,11 @@ function toDocx(html: string, target: string): boolean {
 function main(argv: string[]): number {
   const args = [...argv];
   let out: string | undefined;
-  let vault: string | undefined;
-  let doc = false;
   let docx = false;
   const inputs: string[] = [];
   while (args.length) {
     const a = args.shift()!;
     if (a === "-o" || a === "--out") out = args.shift();
-    else if (a === "--vault") vault = args.shift();
-    else if (a === "--doc") doc = true;
     else if (a === "--docx") docx = true;
     else if (a === "-h" || a === "--help") {
       console.log(USAGE);
@@ -65,37 +59,22 @@ function main(argv: string[]): number {
     return 2;
   }
   const input = inputs[0];
-  const stem = input.replace(/\.ya?ml$/i, "");
-  const text = readFileSync(input, "utf8");
-  const meta = {
+  const { html, errors } = renderPage(readFileSync(input, "utf8"), {
     fallbackTitle: basename(input, extname(input)),
     source: basename(input),
     generated: new Date().toISOString().slice(0, 10),
-  };
-  const link = vault
-    ? (target: string, kind: string) =>
-        kind === "url" ? target : `obsidian://open?vault=${encodeURIComponent(vault!)}&file=${encodeURIComponent(target)}`
-    : undefined;
-
-  const web = renderPage(text, { link, ...meta });
-  const target = out ?? `${stem}.html`;
-  writeFileSync(target, web.html);
-  for (const e of web.errors) console.error(`warning: ${e}`);
+  });
+  const target = out ?? `${input.replace(/\.ya?ml$/i, "")}.html`;
+  writeFileSync(target, html);
+  for (const e of errors) console.error(`warning: ${e}`);
   console.log(target);
-
-  if (doc || docx) {
-    const page = renderDocPage(text, meta);
-    const docTarget = `${stem}.doc.html`;
-    writeFileSync(docTarget, page.html);
-    console.log(docTarget);
-    if (docx) {
-      const docxTarget = `${stem}.docx`;
-      if (toDocx(docTarget, docxTarget)) console.log(docxTarget);
-      else {
-        console.error("error: --docx needs LibreOffice (soffice) or pandoc on PATH. The .doc.html was still written.");
-        return 1;
-      }
+  if (docx) {
+    const docxTarget = target.replace(/\.html?$/i, "") + ".docx";
+    if (!toDocx(target, docxTarget)) {
+      console.error("error: --docx needs LibreOffice (soffice) or pandoc on PATH. The .html was still written.");
+      return 1;
     }
+    console.log(docxTarget);
   }
   return 0;
 }

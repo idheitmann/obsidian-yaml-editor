@@ -10,7 +10,7 @@ export interface ListHints {
   as?: ListLayout;
   /** Field holding each item's title. Default: name | title | label | id | key. */
   title?: string;
-  /** Item fields (dotted, relative to the item) shown as badges under the title. */
+  /** Item fields (dotted, relative to the item) shown on one "Label: value" line under the title. */
   headline?: string[];
   /** Item fields set as prose, in this order, before the remaining fields. */
   narrative?: string[];
