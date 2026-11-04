@@ -8,7 +8,8 @@
     "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
     "typecheck": "tsc -noEmit -skipLibCheck",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "render": "esbuild src/render/cli.ts --bundle --platform=node --format=cjs --target=node18 --outfile=dist/render-yaml.cjs --log-level=warning && node dist/render-yaml.cjs"
   },
   "keywords": [
     "obsidian",
