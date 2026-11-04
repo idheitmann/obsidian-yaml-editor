@@ -8,9 +8,10 @@ YAML is the connective tissue of an Obsidian vault. Frontmatter drives Dataview,
 
 This plugin makes YAML editing feel like a structured editor, not a text editor — without giving up the speed of typing. The cursor always knows where it is in the document tree. The keys you can add at the current level are one keystroke away. Indentation is automatic and correct. Special characters are escaped when they need to be. Anchors and aliases stop being arcane.
 
-It works in two places:
+It works in three places:
 1. **Frontmatter** — the `---` block at the top of a note.
 2. **YAML code blocks** — fenced blocks tagged ` ```yaml ` (and ` ```yml `).
+3. **Standalone `.yaml` / `.yml` files** — opened in their own view, where the whole file is YAML. These can also be read as a rendered report (§6).
 
 ## Design Principles
 
@@ -77,6 +78,13 @@ It works in two places:
     - Custom user-defined snippets from settings
 - Each entry inserts a templated structure with tab stops, leveraging CodeMirror's snippet API.
 
+### 6. Rendered View
+- A standalone YAML file can be read as a report instead of as source: a header toggle switches between the editor and a **read-only** rendering, like Markdown's reading view. The editor stays mounted while hidden, and editing commands are unavailable in the rendered view.
+- **Schema-agnostic.** Layout comes from the shape of the data: maps as label tables, uniform records as tables, other records as headed sections, maps of maps as legends whose keys are cross-referenced in text. A file can steer the layout with an optional top-level `_view:` block of purely structural hints (title, intro, section order, labels, record headlines and narrative fields, pivot tables). No hint names a domain concept. See RENDER.md.
+- Files with a `_view:` block open rendered by default (a setting); a mode picked with the toggle is kept in the pane state.
+- **Export.** "Render to HTML file" writes the same report as a static page with only paste-safe markup (headings, paragraphs, lists, inline-styled tables), so it pastes into Word or Google Docs. The in-app view uses theme colours instead.
+- The renderer is a pure function (text in, escaped HTML out). It never writes to the YAML: round-trip preservation is untouched because the view doesn't edit.
+
 ## Architecture
 
 ```
@@ -125,6 +133,7 @@ The `SchemaTracker` is the only piece with vault scope; everything else is per-e
 - Reformatting on save. We keep the user's whitespace.
 - A linter ruleset à la `yamllint`. We surface parse errors, not style.
 - Full JSON-Schema reference resolution (`$ref` to remote URLs). Local refs only.
+- Editing in the rendered view. It's for reading and exporting; edits happen in the editor.
 
 ## Open questions (intentionally deferred)
 
