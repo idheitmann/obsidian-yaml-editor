@@ -30,6 +30,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     swaps a key or list item with its sibling instead of the neighboring line.
   - **Tab / Shift+Tab on a key or list item** indents or outdents its whole
     subtree. Elsewhere (block-scalar text, comments) it still moves one line.
+    Outdenting is logical: when siblings follow the node, it moves to just
+    after its parent's block instead of capturing them as children, and an
+    outdent that wouldn't parse is refused with a notice.
   - **Sort keys at this level**: case-insensitive, comments kept with their
     keys. Refuses if the parsed data would change.
   - **Shape conversions**: value → block list, list → map (plain values become

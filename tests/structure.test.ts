@@ -154,6 +154,39 @@ describe("indentSubtree", () => {
     expect(errorOf(indentSubtree(text, 0, "out"))).toMatch(/outermost/);
   });
 
+  it("outdents with later siblings by moving the node after its parent, leaving the siblings in place", () => {
+    const text = "a:\n  x:\n    k: 1\n  y: 2\n  z: 3\nb: 4\n";
+    const r = indentSubtree(text, at(text, "x:"), "out");
+    const out = run(text, r);
+    expect(out).toBe("a:\n  y: 2\n  z: 3\nx:\n  k: 1\nb: 4\n");
+    expect(out.slice((r as { cursor: number }).cursor).startsWith("x:")).toBe(true);
+  });
+
+  it("a later Tab nests the node under the parent again without capturing the siblings", () => {
+    const text = "a:\n  x:\n    k: 1\n  y: 2\nb: 4\n";
+    const out = run(text, indentSubtree(text, at(text, "x:"), "out"));
+    expect(run(out, indentSubtree(out, at(out, "x:"), "in"))).toBe("a:\n  y: 2\n  x:\n    k: 1\nb: 4\n");
+  });
+
+  it("carries attached comments, and works at the end of a file without a newline", () => {
+    const text = "a:\n  # about x\n  x: 1\n  y: 2";
+    expect(run(text, indentSubtree(text, at(text, "x:"), "out"))).toBe("a:\n  y: 2\n# about x\nx: 1");
+  });
+
+  it("moves list items the same way", () => {
+    const text = "-\n  - 1\n  - 2\n- 3\n";
+    expect(run(text, indentSubtree(text, at(text, "- 1"), "out"))).toBe("-\n  - 2\n- 1\n- 3\n");
+  });
+
+  it("refuses a logical outdent that wouldn't parse", () => {
+    const keyIntoList = "- name: a\n  role: b\n  x: c\n";
+    expect(errorOf(indentSubtree(keyIntoList, at(keyIntoList, "role"), "out"))).toMatch(/valid YAML/);
+    const itemIntoMap = "a:\n  - b:\n      - 1\n      - 2\n    c: 3\n";
+    expect(errorOf(indentSubtree(itemIntoMap, at(itemIntoMap, "- 1"), "out"))).toMatch(/valid YAML/);
+    const duplicate = "x: 0\na:\n  x: 1\n  y: 2\n";
+    expect(errorOf(indentSubtree(duplicate, at(duplicate, "  x:") + 2, "out"))).toMatch(/valid YAML/);
+  });
+
   it("returns null off a key or item line, so Tab falls back", () => {
     expect(indentSubtree("a: |\n  text\n", 6, "in")).toBeNull();
     expect(indentSubtree("\n", 0, "in")).toBeNull();

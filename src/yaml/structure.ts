@@ -376,6 +376,13 @@ export function moveNode(text: string, offset: number, dir: "up" | "down"): Stru
  * Tab / Shift+Tab on a key or item line: shift its whole subtree (and its
  * attached comments) by one indent step. Returns null when the line isn't a
  * key or item, so the caller can fall back to indenting just the line.
+ *
+ * Outdenting is "logical": when siblings follow the node inside its parent,
+ * shifting it in place would turn them into the node's children. Instead the
+ * node moves to just after the parent's block and becomes the parent's next
+ * sibling; the later siblings stay where they were. A last child outdents in
+ * place. A logical outdent that wouldn't parse (a key landing in a list, a
+ * duplicate key) is refused.
  */
 export function indentSubtree(text: string, offset: number, dir: "in" | "out", unit = 2): StructuralResult | null {
   const lines = classifyLines(text);
@@ -390,7 +397,53 @@ export function indentSubtree(text: string, offset: number, dir: "in" | "out", u
     else if (l.text.startsWith(pad)) edits.push({ from: l.from, to: l.from + unit, insert: "" });
     else return { error: "Already at the outermost level." };
   }
-  return { edits };
+  if (dir === "in") return { edits };
+
+  const parent = node.inline ? null : parentOf(lines, node);
+  if (!parent || !hasLaterSibling(lines, node.end, parent.end)) return { edits };
+  return outdentAfterParent(text, lines, node, parent, offset, unit);
+}
+
+/** Whether a key or item line follows `nodeEnd` inside the parent's block. */
+function hasLaterSibling(lines: YamlLine[], nodeEnd: number, parentEnd: number): boolean {
+  for (let j = nodeEnd; j < parentEnd; j++) if (lines[j].kind === "key" || lines[j].kind === "item") return true;
+  return false;
+}
+
+/** Cut the node out, outdent it, and insert it right after its parent's block. */
+function outdentAfterParent(
+  text: string,
+  lines: YamlLine[],
+  node: YamlNode,
+  parent: YamlNode,
+  offset: number,
+  unit: number,
+): StructuralResult {
+  if (dataOf(text) === null) return { error: BROKEN };
+  const blockFrom = lines[node.leadStart].from;
+  const blockTo = lines[node.end].from; // a later sibling exists, so node.end is inside the text
+  const moved: string[] = [];
+  let headerAt = 0;
+  for (let j = node.leadStart; j < node.end; j++) {
+    if (j === node.line) headerAt = moved.reduce((n, t) => n + t.length + 1, 0);
+    const t = lines[j].text;
+    moved.push(lines[j].kind === "blank" ? t : t.slice(unit));
+  }
+  const block = moved.join("\n");
+  const atEnd = parent.end >= lines.length;
+  const insertAt = atEnd ? text.length : lines[parent.end].from;
+  const insert = atEnd ? (text.endsWith("\n") ? "" : "\n") + block : block + "\n";
+  const edits: TextEdit[] = [
+    { from: blockFrom, to: blockTo, insert: "" },
+    { from: insertAt, to: insertAt, insert },
+  ];
+  if (dataOf(applyEdits(text, edits)) === null) {
+    return { error: "Can't outdent this here: the result wouldn't be valid YAML." };
+  }
+  const column = Math.max(0, offset - lines[node.line].from - unit);
+  const lead = atEnd && !text.endsWith("\n") ? 1 : 0;
+  const cursor = insertAt - (blockTo - blockFrom) + lead + headerAt + column;
+  return { edits, cursor };
 }
 
 /** Sort the keys of the mapping containing the cursor, case-insensitively. Comments travel with their keys. */

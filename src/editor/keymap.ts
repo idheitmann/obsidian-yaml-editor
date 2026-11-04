@@ -33,7 +33,10 @@ function yamlTab(view: EditorView, forward: boolean): boolean {
   const region = yamlRegions(state).find((r) => sel.head >= r.from && sel.head <= r.to)!;
   const subtree = indentSubtree(region.text, sel.head - region.from, forward ? "in" : "out", INDENT.length);
   if (subtree) {
-    if ("error" in subtree) return false; // can't outdent further
+    // At the left margin there's nothing to do; let the key fall through.
+    if ("error" in subtree && /outermost/.test(subtree.error)) return false;
+    // Any other refusal shows its reason and consumes the key, so the default
+    // Shift+Tab doesn't outdent just this line and capture the siblings below it.
     return cmStructural(view, () => subtree);
   }
 
