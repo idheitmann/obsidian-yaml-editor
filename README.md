@@ -1,203 +1,69 @@
 # YAML Editor for Obsidian
 
-A focused YAML editing *mode* for Obsidian — not just syntax highlighting, but a tool that knows it's editing YAML and behaves accordingly. It gives you schema-aware completions, structural indentation, folding, a snippet palette, and a dedicated editor for standalone YAML files, all without reformatting your text.
+Edit YAML in Obsidian with an editor that understands its structure: completions learned from your vault, structure-aware indenting and restructuring, folding, and a rendered view that turns a YAML file into a readable report. It never reformats your text: key order, comments and whitespace stay as you wrote them.
 
-It works in three places:
-
-1. **Frontmatter** — the `---` block at the top of a note.
-2. **YAML code blocks** — fenced blocks tagged ` ```yaml ` or ` ```yml `.
-3. **Standalone `.yaml` / `.yml` files** — opened directly in their own editor (Obsidian normally hides these).
-
-> Design intent and the full specification live in [SPEC.md](SPEC.md). The guiding principle is **round-trip preservation**: the plugin never reorders your keys, strips your comments, or reformats your whitespace behind your back.
-
----
+It works in note frontmatter, ` ```yaml ` code blocks, and standalone `.yaml` / `.yml` files, which Obsidian normally hides and this plugin opens in their own editor.
 
 ## Features
 
-### Schema-aware completions
+**Completions.** As you type a key, the plugin suggests keys used at the same path elsewhere in your vault, ranked by how often they appear, with example values. Optional [JSON Schemas](#json-schemas) add authoritative keys, descriptions and allowed values.
 
-As you type a key inside a YAML region, autocomplete suggests:
+**Snippets and the palette.** Common fields (`tags`, `aliases`, dates, Dataview stubs, list and map skeletons) appear in autocomplete with tab stops. *YAML: Insert element here…* opens a searchable palette for the cursor's position. You can add your own snippets in settings.
 
-- **Keys already used elsewhere in your vault at the same path.** The plugin continuously scans every note's frontmatter and code blocks (and every standalone `.yaml`/`.yml` file) and learns which keys tend to appear where. Suggestions are ranked by how often they occur, and annotated with the value types observed (e.g. `string, date`) and example values.
-- **Example values** drawn from how the key is used in other notes.
-- **Snippets** for common structures (see below).
+**Structural editing.** Enter continues lists and indents after a `key:`. Tab and Shift+Tab move a key or list item together with everything under it. Alt+↑ / Alt+↓ swap a node with its neighbour, comments included. You can also sort keys at a level, convert a value to a list, a list to a map, or a map to a list of maps. These are in the command palette and the right-click menu. Edits that shouldn't change your data are checked, and refused if they would.
 
-The suggestion list is *path-aware*: at the top level of your frontmatter you'll see top-level keys; nested under `dataview:` you'll see the keys other notes nest there. Keys already present at the current level are filtered out.
+**Rendered view.** In a standalone `.yaml` file, the book icon in the header switches to a read-only report: headings, tables and paragraphs laid out from the shape of the data, in your theme's colours, with vault paths you can click. The pencil switches back. An optional `_view:` block in the file controls the title, section order, labels and summary tables; files with one open rendered by default. *YAML: Render to HTML file* saves a static copy next to the YAML that pastes cleanly into Word or Google Docs. See [RENDER.md](RENDER.md) for the `_view` options.
 
-You can also point the plugin at **explicit JSON Schemas** for stronger, authoritative suggestions — see [Explicit schemas](#explicit-schemas) below.
+**Orientation.** Folding, a status-bar breadcrumb (`project › milestones[2] › title`), index markers on list items, *Go to key…* by dotted path, and quiet parse-error markers. It reports parse errors only and isn't a style linter.
 
-### Snippet palette & snippets
+**Smaller tools.** Toggle minimal quoting on a value, add and reference anchors, insert today's date, and insert a frontmatter block.
 
-Two ways to insert structured YAML quickly:
+## Keys
 
-- **Inline snippets** appear in the normal autocomplete list. Accepting one inserts a real template with tab stops you can `Tab` through — e.g. `tags:`, `aliases:`, `created: <today>`, a Dataview field stub, or a `list` / `map` / `list of maps` skeleton. Date placeholders (`${TODAY}`, `${NOW}`) are filled in automatically.
-- **Schema Palette** — the *YAML: Insert element here…* command opens a searchable palette scoped to the cursor's current path, combining vault-observed keys, built-in Obsidian field snippets (`tags`, `aliases`, `cssclasses`, `publish`, …), Dataview stubs, shape templates, anchors/aliases, and any snippets you've defined in settings.
-
-You can add your own snippets in the plugin's settings tab (id, label, hint, and a body using `${1:placeholder}` tab stops and `${TODAY}`/`${NOW}` dates).
-
-### Structural editing
-
-- **Smart Enter** — pressing Enter inside a YAML region indents the new line to match the structure: it continues a sequence (adds `- `), indents one level after a block-opening `key:`, and otherwise keeps the current indent for a sibling. Outside YAML regions, Enter behaves normally.
-- **Smart Tab / Shift-Tab** — adjusts indentation in 2-space steps, but only inside YAML regions. Elsewhere, Tab does what it always does.
-- **Folding** — map and sequence blocks are foldable from the editor gutter, based on indentation. Trailing blank lines aren't swallowed into the fold.
-
-### Value quoting
-
-The **YAML: Toggle quotes on value** command quotes or unquotes the value on the current line, choosing minimal correct quoting. It only quotes when leaving the value bare would actually change how YAML parses it (a `: ` that looks like a mapping, a leading indicator character, surrounding whitespace, or a reserved word like `true`/`no`/`null`). Values that are safe bare — including URLs like `http://example.com` — are left alone. Quoting is an explicit command rather than something that fires while you type, so it never surprises you mid-edit.
-
-### Anchors & aliases
-
-- **YAML: Add anchor** (or `Cmd/Ctrl+Shift+A` in the editor) — adds an `&anchor` to the value on the current line.
-- **YAML: Reference anchor** (or `Cmd/Ctrl+Shift+R`) — inserts an `*alias` reference.
-
-### Navigation & orientation
-
-- **Breadcrumb** — the status bar shows your exact location in the document tree, e.g. `frontmatter › project › milestones[2] › title`, updating as you move the cursor.
-- **YAML: Go to key…** — jump to a key by dotted path (e.g. `dataview.project`). Matching respects nesting, so `a.b` only finds a `b:` that's actually a child of `a:`.
-- **Sequence index badges** — list items show a subtle index marker so you can tell where you are in a long sequence.
-
-### Diagnostics
-
-Parse errors are surfaced quietly: an underline on the offending text plus a marker in the lint gutter, with the parser's message on hover. The plugin reports genuine parse errors only — it is not a style linter and won't nag you about formatting.
-
-### Standalone `.yaml` / `.yml` files
-
-Obsidian normally hides non-Markdown files. With this plugin enabled, `.yaml` and `.yml` files appear in the file explorer and open in a dedicated editor that brings along everything above — completions, smart Enter/Tab, folding, diagnostics, the breadcrumb, and anchor shortcuts — plus line numbers and syntax highlighting. The whole file is treated as YAML.
-
-### Insert frontmatter
-
-The **Insert frontmatter** command adds a `---` block to the top of a note that doesn't have one, and drops your cursor inside it.
-
----
-
-## Commands & keybindings
-
-All commands are in the command palette and can be assigned hotkeys via **Settings → Hotkeys**.
-
-| Command | What it does |
-| --- | --- |
-| Insert frontmatter | Add a `---` block at the top of the note |
-| YAML: Insert element here… | Open the Schema Palette at the cursor's path |
-| YAML: Toggle quotes on value | Quote / unquote the current line's value |
-| YAML: Toggle list/scalar | Wrap the current value as an inline list (`x` → `[x]`), or strip a trailing empty `[]` |
-| YAML: Go to key… | Jump to a key by dotted path |
-| YAML: Add anchor | Add an `&anchor` to the current value |
-| YAML: Reference anchor | Insert an `*alias` reference |
-| YAML: Format YAML region | Normalize indentation to 2-space multiples (no other reformatting) |
-| YAML: Reload schemas | Re-read JSON Schema files from the schema directory |
-
-Apart from *Insert frontmatter* (Markdown-only) and *Reload schemas* (global), these commands work in both Markdown notes and standalone `.yaml`/`.yml` files, and appear only when the cursor is inside a YAML region.
-
-The following work as built-in keybindings whenever the cursor is inside a YAML region (including standalone YAML files):
+Inside YAML:
 
 | Key | Action |
 | --- | --- |
-| `Enter` | Structure-aware newline + indent |
-| `Tab` / `Shift+Tab` | Indent / outdent by 2 spaces |
-| `Cmd/Ctrl+Shift+D` | Insert today's date (`YYYY-MM-DD`) |
-| `Cmd/Ctrl+Shift+A` | Add an anchor on the current value |
-| `Cmd/Ctrl+Shift+R` | Insert an alias reference |
+| `Enter` | New line at the right indent |
+| `Tab` / `Shift+Tab` | Indent / outdent the node and its children |
+| `Alt+↑` / `Alt+↓` | Move the node up / down |
+| `Cmd/Ctrl+Shift+D` | Insert today's date |
+| `Cmd/Ctrl+Shift+A` | Add an anchor |
+| `Cmd/Ctrl+Shift+R` | Reference an anchor |
 
----
+Every command is in the palette under "YAML:" and can be given a hotkey in Settings → Hotkeys.
 
-## Settings
+## JSON Schemas
 
-- **Show gutter icons** — error markers and fold markers in the editor gutter.
-- **Show ghost text** — a faint value hint at the end of the cursor's line when it looks like it wants a value.
-- **Show path breadcrumbs** — the YAML path in the status bar.
-- **Custom snippets** — define your own palette/autocomplete snippets (id, label, hint, body).
-- **Schema directory** — folder containing explicit JSON Schema files (see below). Default `.obsidian/yaml-schemas/`.
-
----
-
-## How schemas work
-
-Suggestions come from two sources that work together: an always-on inferred schema, and optional explicit JSON Schemas you provide.
-
-### Inferred schema (always on)
-
-There's nothing to set up. The plugin builds a **probabilistic schema** by watching your vault: for every key path it sees — across note frontmatter, `yaml` code blocks, and standalone `.yaml`/`.yml` files — it records the value types, a few example values, and how often the path occurs. This updates incrementally as you create, edit, rename, and delete files. The more consistently you use a field across your notes, the better the suggestions get. Vaults are messy, so these are ranked by frequency, not enforced as rules.
-
-### Explicit schemas
-
-For fields you want to standardize, drop a [JSON Schema](https://json-schema.org/) file into the schema directory (default `.obsidian/yaml-schemas/`, configurable in settings). Then opt a note or file into it:
-
-- in frontmatter or a standalone file, a top-level key: `_schema: book`
-- in a ` ```yaml ` code block, a comment: `# yaml-schema: book`
-
-`book` is either the schema file's name (`book.json`) or its `$id`. Once opted in:
-
-- **Key completions** come from the schema's `properties` at your current path, ranked above inferred suggestions and annotated with type, `required` status, and the field's `description`.
-- **Value completions** offer the `enum` values defined for the field you're editing.
-
-Nested objects, array items, and local `$ref`s (`#/$defs/...`, `#/definitions/...`) are followed. Remote `$ref`s and full validation are out of scope. After editing schema files, run **YAML: Reload schemas** (they're also loaded on startup and when you change the schema directory).
-
-A minimal example — `.obsidian/yaml-schemas/book.json`:
+The plugin works without any setup, learning from your vault. For fields you want to standardize, put a JSON Schema file in the schema folder (default `yaml-schemas/` inside your vault's `.obsidian` folder; configurable in settings) and opt in with a top-level `_schema: book` key, or `# yaml-schema: book` in a code block. `book` is the file name or the schema's `$id`.
 
 ```json
 {
   "type": "object",
-  "required": ["title"],
   "properties": {
     "title": { "type": "string", "description": "Book title" },
-    "status": { "enum": ["unread", "reading", "finished"] },
-    "rating": { "type": "integer" }
+    "status": { "enum": ["unread", "reading", "finished"] }
   }
 }
 ```
 
-```yaml
----
-_schema: book
-title: |
-status:   # completion offers unread / reading / finished
----
-```
+Schema keys are suggested first, with their descriptions, and `enum` values are offered as completions. Local `$ref`s are followed; remote ones aren't. Run *YAML: Reload schemas* after editing a schema file.
 
----
+## Settings
+
+Schema folder, open reports in rendered view, gutter icons, ghost-text hints, path breadcrumbs, aligned wrapped lines, and your own snippets.
 
 ## Installing
 
-This plugin isn't in the community store yet, so install it manually.
+Install **YAML Editor** from Settings → Community plugins. Requires Obsidian 1.5.0 or later; works on desktop and mobile (the breadcrumb is desktop-only).
 
-**From a release build:** copy `main.js`, `manifest.json`, and `styles.css` into `<your vault>/.obsidian/plugins/yaml-editor/`, then enable **YAML Editor** under Settings → Community plugins.
-
-**For development** (symlink the repo into your vault):
-
-```bash
-ln -s /path/to/obsidian-yaml-editor <your vault>/.obsidian/plugins/yaml-editor
-```
-
-The symlink (or folder) must be named `yaml-editor` to match the plugin id. Then:
-
-```bash
-npm install
-npm run dev      # esbuild watch — rebuilds main.js on change
-```
-
-Obsidian has no hot reload, so after a rebuild, reload the plugin (toggle it off/on, or run "Reload app without saving"). For a one-off production build, use `npm run build`.
-
-Requires Obsidian **1.5.0+**. Works on desktop and mobile (the status-bar breadcrumb is desktop-only, as Obsidian mobile has no status bar).
-
----
-
-## What it deliberately doesn't do
-
-- It is **not** a general structured-data editor — YAML only, no JSON/TOML.
-- It does **not** reformat on save or enforce a style. Your whitespace, key order, and comments are yours.
-- It surfaces parse errors, not lint/style opinions.
-
-See [SPEC.md](SPEC.md) for the complete design rationale and non-goals.
-
----
+To build it yourself, see [CLAUDE.md](CLAUDE.md) for the commands and [SPEC.md](SPEC.md) for the design and non-goals.
 
 ## Support
 
-If this plugin saves you time or makes your YAML editing more pleasant, consider buying me a coffee ☕
+If the plugin saves you time, you can [buy me a coffee](https://buymeacoffee.com/ivanheitmann).
 
 [!["Buy Me a Coffee"](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=flat&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/ivanheitmann)
-
-Your support helps cover development time, testing across platforms, and keeping the plugin maintained.
 
 ## License
 
