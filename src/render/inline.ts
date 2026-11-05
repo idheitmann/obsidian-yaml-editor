@@ -49,25 +49,46 @@ export function renderPath(path: string, note: string | undefined, refs: RefInde
 // One pass over the raw text. Each alternative is a token; text between
 // tokens is escaped. Code spans come first so nothing inside them is
 // interpreted.
+//
+// No lookbehinds: iOS before 16.4 can't parse them, and the regex is compiled
+// at load, so one would break the whole plugin there. Tokens 7 and 9 must not
+// start inside a word; renderInline checks the preceding character instead.
 const TOKEN = new RegExp(
   [
     "`([^`\\n]+)`", // 1 code
     "\\[\\[([^\\]|\\n]+)(?:\\|([^\\]\\n]+))?\\]\\]", // 2,3 wikilink
     "\\[([^\\]\\n]+)\\]\\((https?:[^)\\s]+)\\)", // 4,5 markdown link
     "\\*\\*((?:[^*\\n]|\\*(?!\\*))+)\\*\\*", // 6 bold (may contain *italic*)
-    "(?<![\\w*])\\*([^*\\s][^*\\n]*?)\\*(?![\\w*])", // 7 italic (asterisks only; underscores are identifiers)
+    "\\*([^*\\s][^*\\n]*?)\\*(?![\\w*])", // 7 italic (asterisks only; underscores are identifiers); not after [\w*]
     "(https?:\\/\\/[^\\s)<>\"]+)", // 8 bare url
-    "(?<![\\w./-])([A-Za-z][A-Za-z0-9]*_[A-Za-z0-9_]+)(?![\\w/-])", // 9 identifier that may be a ref key
+    "([A-Za-z][A-Za-z0-9]*_[A-Za-z0-9_]+)(?![\\w/-])", // 9 identifier that may be a ref key; not after [\w./-]
   ].join("|"),
   "g",
 );
 
+/**
+ * Whether a token 7 or 9 match is preceded by a character that rules it out.
+ * Rejecting and resuming one character later is equivalent to the lookbehind:
+ * no earlier alternative can start with `*` or a letter where these would.
+ */
+function blockedByPreceding(m: RegExpExecArray, text: string): boolean {
+  const prev = m.index > 0 ? text[m.index - 1] : "";
+  if (m[7] !== undefined) return /[\w*]/.test(prev);
+  if (m[9] !== undefined) return /[\w./-]/.test(prev);
+  return false;
+}
+
 export function renderInline(text: string, refs: RefIndex, st: InlineStyle = INLINE_STYLES.inline): string {
   let out = "";
   let last = 0;
-  // matchAll iterates a copy of the regex, so recursive calls (bold, italic)
-  // don't share lastIndex with this loop.
-  for (const m of text.matchAll(TOKEN)) {
+  // A fresh regex per call, so recursive calls (bold, italic) don't share
+  // lastIndex with this loop.
+  const re = new RegExp(TOKEN);
+  for (let m = re.exec(text); m !== null; m = re.exec(text)) {
+    if (blockedByPreceding(m, text)) {
+      re.lastIndex = m.index + 1;
+      continue;
+    }
     out += escapeHtml(text.slice(last, m.index));
     last = m.index + m[0].length;
     if (m[1] !== undefined) out += `<span style="${st.mono}">${escapeHtml(m[1])}</span>`;

@@ -132,16 +132,16 @@ class Renderer {
 
   tableable(items: unknown[]): boolean {
     if (!items.every(isObj)) return false;
-    const keys = new Set(items.flatMap((i) => Object.keys(i as Obj).filter((k) => !k.startsWith("_"))));
-    return keys.size <= 6 && items.every((i) => Object.values(i as Obj).every((v) => isScalar(v) && String(v ?? "").length <= 80));
+    const keys = new Set(items.flatMap((i) => Object.keys(i).filter((k) => !k.startsWith("_"))));
+    return keys.size <= 6 && items.every((i) => Object.values(i).every((v) => isScalar(v) && String(v ?? "").length <= 80));
   }
 
   list(items: unknown[], path: string, depth: number, hints?: ListHints): string {
     if (!items.length) return `<p style="${this.s.p}">—</p>`;
     const objs = items.every(isObj);
     const layout = hints?.as ?? (!objs ? "list" : this.tableable(items) ? "table" : "cards");
-    if (layout === "table" && objs) return this.table(items as Obj[], path);
-    if (layout === "cards" && objs) return this.cards(items as Obj[], path, depth, hints);
+    if (layout === "table" && objs) return this.table(items, path);
+    if (layout === "cards" && objs) return this.cards(items, path, depth, hints);
     return `<ul style="${this.s.p}">${items
       .map((i) => `<li>${this.short(i) ?? (typeof i === "string" ? this.inline(i) : this.block(i, path, depth + 1))}</li>`)
       .join("")}</ul>`;

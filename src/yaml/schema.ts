@@ -1,6 +1,6 @@
 import { App, TFile, debounce } from "obsidian";
 import { isMap, isSeq, isScalar } from "yaml";
-import type { Pair, YAMLMap, YAMLSeq, Node as YamlNode } from "yaml";
+import type { Node as YamlNode } from "yaml";
 
 import { findYamlRegions } from "./regions";
 import { classifyValue, parseRegion, pathKey } from "./parser";
@@ -165,7 +165,7 @@ function walk(
   visit: (path: YamlPath, value: YamlNode) => void,
 ): void {
   if (isMap(node)) {
-    for (const item of (node as YAMLMap).items as Pair[]) {
+    for (const item of node.items) {
       const k = scalarKey(item.key);
       if (k === null) continue;
       const childPath = [...path, k];
@@ -173,7 +173,7 @@ function walk(
       if (item.value) walk(item.value as YamlNode, childPath, visit);
     }
   } else if (isSeq(node)) {
-    const items = (node as YAMLSeq).items as YamlNode[];
+    const items = node.items as YamlNode[];
     for (let i = 0; i < items.length; i++) {
       const childPath = [...path, i];
       visit(childPath, items[i]);

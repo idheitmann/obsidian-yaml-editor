@@ -177,13 +177,10 @@ export default class YamlEditorPlugin extends Plugin {
     });
 
     this.addSettingTab(new YamlEditorSettingTab(this.app, this));
-
-    console.log("[yaml-editor] loaded");
   }
 
   override onunload(): void {
     this.schemaCleanup?.();
-    console.log("[yaml-editor] unloaded");
   }
 
   // ── Settings ──────────────────────────────────────────────────────────────
@@ -390,15 +387,14 @@ class YamlEditorSettingTab extends PluginSettingTab {
         { key: "body", placeholder: "Snippet body\n${1:placeholder} = tab stop\n${TODAY} = today's date", multiline: true },
       ];
       for (const { key, placeholder, multiline } of fields) {
+        const attr = { placeholder, "data-field": key };
         const el = multiline
-          ? Object.assign(activeDocument.createElement("textarea"), { placeholder, rows: 2 })
-          : Object.assign(activeDocument.createElement("input"), { placeholder });
-        el.setAttribute("data-field", key);
+          ? row.createEl("textarea", { attr: { ...attr, rows: 2 } })
+          : row.createEl("input", { attr });
         if (snip && key in snip) {
-          (el as HTMLInputElement).value = String((snip as unknown as Record<string, unknown>)[key] ?? "");
+          el.value = String((snip as unknown as Record<string, unknown>)[key] ?? "");
         }
         el.addEventListener("input", () => { void rebuildSnippets(); });
-        row.appendChild(el);
       }
       new Setting(row).addButton((b) =>
         b.setIcon("trash").setTooltip("Remove").onClick(() => { row.remove(); void rebuildSnippets(); }),

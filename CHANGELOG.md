@@ -16,6 +16,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   inserted above it or the list is reordered. A fold that can't be placed with
   confidence is dropped rather than guessed. Nothing is written into the YAML.
 
+### Fixed
+
+- **The plugin loads on iOS before 16.4.** The rendered view's inline-markdown
+  tokenizer used regex lookbehinds, which older Safari can't parse; since the
+  regex is compiled at load, the whole plugin failed there. The same matching
+  is now done without them.
+- Cleared Obsidian review warnings: Obsidian's `createEl` helpers instead of
+  `document.createElement`, no console logging on load/unload, and no
+  redundant type assertions.
+
 ## [1.1.0] — 2026-11-04
 
 ### Added

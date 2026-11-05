@@ -16,11 +16,7 @@ class GhostTextWidget extends WidgetType {
   }
 
   toDOM(): HTMLElement {
-    const span = activeDocument.createElement("span");
-    span.className = "yaml-ghost-text";
-    span.textContent = this.text;
-    span.setAttribute("aria-hidden", "true");
-    return span;
+    return createSpan({ cls: "yaml-ghost-text", text: this.text, attr: { "aria-hidden": "true" } });
   }
 
   eq(other: GhostTextWidget): boolean {

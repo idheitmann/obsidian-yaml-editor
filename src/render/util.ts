@@ -62,9 +62,9 @@ export function buildRefs(data: Obj): RefIndex {
     for (const [key, entry] of entries) {
       if (refs.has(key)) continue;
       const e = entry as Obj;
-      const label = (["label", "title", "name"].map((k) => e[k]).find((v) => typeof v === "string") as string) ?? humanize(key);
+      const label = (["label", "title", "name"].map((k) => e[k]).find((v) => typeof v === "string")) ?? humanize(key);
       const summary =
-        (SUMMARY_KEYS.map((k) => e[k]).find((v) => typeof v === "string") as string | undefined) ??
+        (SUMMARY_KEYS.map((k) => e[k]).find((v) => typeof v === "string")) ??
         (Object.values(e).find((v) => typeof v === "string" && v !== label) as string | undefined) ??
         "";
       refs.set(key, { label, summary });

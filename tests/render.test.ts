@@ -38,6 +38,18 @@ describe("inline markdown", () => {
   it("leaves snake_case identifiers alone unless they are refs", () => {
     expect(renderInline("plain some_key here", noRefs)).toBe("plain some_key here");
   });
+
+  it("only italicizes asterisks that aren't inside a word", () => {
+    expect(renderInline("2*3*4 and a*b*", noRefs)).toBe("2*3*4 and a*b*");
+    expect(renderInline("x*y* *z* (*w*)", noRefs)).toBe("x*y* <em>z</em> (<em>w</em>)");
+    expect(renderInline("`c`*i*", noRefs)).toBe('<span style="font-family:Consolas,monospace">c</span><em>i</em>');
+  });
+
+  it("replaces a ref key only when it stands alone", () => {
+    const refs = new Map([["my_key", { label: "Label" }]]);
+    expect(renderInline("my_key, (my_key) xmy_key", refs)).toBe("Label, (Label) xmy_key");
+    expect(renderInline("a.my_key dir/my_key -my_key my_key/x", refs)).toBe("a.my_key dir/my_key -my_key my_key/x");
+  });
 });
 
 describe("asPath", () => {
